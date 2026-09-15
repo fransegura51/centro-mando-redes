@@ -3,5 +3,5 @@
 // Las claves secretas (service role, tokens OAuth) NUNCA van aquí.
 window.CMR_CONFIG = {
   SUPABASE_URL: 'https://hahszmdfblcvljzanvoq.supabase.co',
-  SUPABASE_ANON_KEY: '',
+  SUPABASE_ANON_KEY: 'sb_publishable_hcqXBOAWBy7YI0Em0hdlXQ_Y4I-5Lit',
 };
