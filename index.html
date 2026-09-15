@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#111827">
+  <title>Centro de Mando Redes</title>
+  <style>
+    :root {
+      --fondo: #f3f4f6; --tarjeta: #ffffff; --texto: #111827; --suave: #6b7280;
+      --borde: #e5e7eb; --primario: #2563eb; --error: #b91c1c; --error-fondo: #fee2e2;
+      --ok: #15803d; --aviso: #b45309;
+      --youtube: #ff0000; --instagram: #d62976; --facebook: #1877f2; --tiktok: #010101;
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+      background: var(--fondo); color: var(--texto); font-size: 16px; }
+    header { background: #111827; color: #fff; padding: 14px 16px; display: flex;
+      justify-content: space-between; align-items: center; }
+    header h1 { margin: 0; font-size: 1.1rem; font-weight: 600; }
+    header button { background: transparent; color: #fff; border: 1px solid #4b5563;
+      border-radius: 6px; padding: 6px 10px; font-size: 0.85rem; }
+    main { padding: 16px; max-width: 900px; margin: 0 auto; }
+    [hidden] { display: none !important; }
+
+    /* Login */
+    .login { max-width: 360px; margin: 48px auto; background: var(--tarjeta);
+      border: 1px solid var(--borde); border-radius: 10px; padding: 24px; }
+    .login h2 { margin: 0 0 16px; font-size: 1.2rem; }
+    label { display: block; font-size: 0.9rem; color: var(--suave); margin: 12px 0 4px; }
+    input { width: 100%; padding: 12px; font-size: 1rem; border: 1px solid var(--borde);
+      border-radius: 6px; }
+    .boton { width: 100%; margin-top: 18px; padding: 13px; font-size: 1rem; border: 0;
+      border-radius: 6px; background: var(--primario); color: #fff; cursor: pointer; }
+    .boton:disabled { opacity: 0.6; }
+    .mensaje-error { margin-top: 12px; padding: 10px; border-radius: 6px;
+      background: var(--error-fondo); color: var(--error); font-size: 0.9rem; }
+
+    /* Resumen */
+    .titulo-seccion { display: flex; justify-content: space-between; align-items: baseline;
+      margin: 0 0 12px; }
+    .titulo-seccion h2 { margin: 0; font-size: 1.05rem; }
+    .titulo-seccion small { color: var(--suave); }
+    .tarjetas { display: grid; grid-template-columns: 1fr; gap: 12px; }
+    @media (min-width: 600px) { .tarjetas { grid-template-columns: 1fr 1fr; } }
+    .tarjeta { background: var(--tarjeta); border: 1px solid var(--borde); border-radius: 10px;
+      padding: 14px 16px; border-left: 5px solid var(--suave); }
+    .tarjeta.youtube { border-left-color: var(--youtube); }
+    .tarjeta.instagram { border-left-color: var(--instagram); }
+    .tarjeta.facebook { border-left-color: var(--facebook); }
+    .tarjeta.tiktok { border-left-color: var(--tiktok); }
+    .tarjeta h3 { margin: 0; font-size: 1rem; display: flex; justify-content: space-between; }
+    .tarjeta h3 span { font-weight: 400; color: var(--suave); font-size: 0.85rem; }
+    .cifras { display: flex; gap: 20px; margin: 12px 0 8px; }
+    .cifra .valor { font-size: 1.5rem; font-weight: 600; line-height: 1.1; }
+    .cifra .etiqueta { font-size: 0.75rem; color: var(--suave); }
+    .variacion { font-size: 0.85rem; }
+    .variacion.sube { color: var(--ok); }
+    .variacion.baja { color: var(--error); }
+    .estado { font-size: 0.8rem; color: var(--suave); margin-top: 6px; }
+    .estado.error { color: var(--error); }
+    .sin-conectar { color: var(--suave); font-style: italic; margin: 12px 0 4px; }
+    .aviso-global { padding: 10px 12px; border-radius: 6px; background: #fef3c7;
+      color: var(--aviso); font-size: 0.9rem; margin-bottom: 12px; }
+    #cargando { text-align: center; color: var(--suave); }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Centro de Mando Redes</h1>
+    <button id="btn-salir" hidden>Salir</button>
+  </header>
+
+  <main>
+    <!-- Pantalla de acceso -->
+    <section id="pantalla-login" class="login" hidden>
+      <h2>Acceso</h2>
+      <form id="form-login">
+        <label for="email">Correo</label>
+        <input id="email" type="email" autocomplete="username" required>
+        <label for="password">Contraseña</label>
+        <input id="password" type="password" autocomplete="current-password" required>
+        <button class="boton" id="btn-entrar" type="submit">Entrar</button>
+      </form>
+      <div id="login-error" class="mensaje-error" hidden></div>
+    </section>
+
+    <!-- Pantalla Resumen -->
+    <section id="pantalla-resumen" hidden>
+      <div id="aviso-global" class="aviso-global" hidden></div>
+      <div class="titulo-seccion">
+        <h2>Resumen</h2>
+        <small id="usuario-actual"></small>
+      </div>
+      <div class="tarjetas" id="tarjetas"></div>
+    </section>
+
+    <p id="cargando">Cargando…</p>
+  </main>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+  <script src="config.js"></script>
+  <script>
+    // ---------- Configuración y cliente ----------
+    const CONFIG = window.CMR_CONFIG || {};
+    const REDES = [
+      { clave: 'youtube',   nombre: 'YouTube' },
+      { clave: 'instagram', nombre: 'Instagram' },
+      { clave: 'facebook',  nombre: 'Facebook' },
+      { clave: 'tiktok',    nombre: 'TikTok' },
+    ];
+    const $ = (id) => document.getElementById(id);
+
+    let sb = null;
+    if (CONFIG.SUPABASE_URL && CONFIG.SUPABASE_ANON_KEY) {
+      // persistSession guarda la sesión en localStorage para no pedir la
+      // contraseña cada vez desde el móvil. autoRefreshToken la renueva sola.
+      sb = supabase.createClient(CONFIG.SUPABASE_URL, CONFIG.SUPABASE_ANON_KEY, {
+        auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: false },
+      });
+    }
+
+    // ---------- Navegación entre pantallas ----------
+    function mostrar(pantalla) {
+      $('cargando').hidden = true;
+      $('pantalla-login').hidden = pantalla !== 'login';
+      $('pantalla-resumen').hidden = pantalla !== 'resumen';
+      $('btn-salir').hidden = pantalla !== 'resumen';
+    }
+
+    function mostrarErrorLogin(texto) {
+      const caja = $('login-error');
+      caja.textContent = texto;
+      caja.hidden = !texto;
+    }
+
+    // ---------- Login ----------
+    $('form-login').addEventListener('submit', async (ev) => {
+      ev.preventDefault();
+      if (!sb) return;
+      mostrarErrorLogin('');
+      $('btn-entrar').disabled = true;
+      const { error } = await sb.auth.signInWithPassword({
+        email: $('email').value.trim(),
+        password: $('password').value,
+      });
+      $('btn-entrar').disabled = false;
+      if (error) {
+        mostrarErrorLogin(error.message === 'Invalid login credentials'
+          ? 'Correo o contraseña incorrectos.'
+          : 'No se pudo iniciar sesión: ' + error.message);
+        return;
+      }
+      $('password').value = '';
+    });
+
+    $('btn-salir').addEventListener('click', async () => {
+      if (sb) await sb.auth.signOut();
+    });
+
+    // ---------- Utilidades ----------
+    const fmtNum = (n) => (n === null || n === undefined) ? '—' : new Intl.NumberFormat('es-ES').format(n);
+    const fmtFechaHora = (iso) => iso ? new Date(iso).toLocaleString('es-ES', {
+      day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : null;
+
+    function escapar(texto) {
+      return String(texto)
+        .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+    }
+
+    function diasEntre(fechaA, fechaB) {
+      return Math.round((new Date(fechaB) - new Date(fechaA)) / 86400000);
+    }
+
+    function htmlVariacion(delta) {
+      if (delta === null) return '<span class="variacion">Sin datos de hace 7 días</span>';
+      const clase = delta > 0 ? 'sube' : delta < 0 ? 'baja' : '';
+      const signo = delta > 0 ? '+' : '';
+      return `<span class="variacion ${clase}">${signo}${fmtNum(delta)} en 7 días</span>`;
+    }
+
+    // ---------- Cifras de una tarjeta ----------
+    // metricas: filas de metricas_diarias ordenadas por fecha descendente.
+    function calcularResumen(metricas) {
+      if (!metricas.length) return null;
+      const ultima = metricas[0];
+      const hace7 = metricas.find((m) => diasEntre(m.fecha, ultima.fecha) >= 7) || null;
+      const variacion = (hace7 && ultima.seguidores !== null && hace7.seguidores !== null)
+        ? ultima.seguidores - hace7.seguidores : null;
+      const ultimos7 = metricas.filter((m) => diasEntre(m.fecha, ultima.fecha) < 7);
+      const conVis = ultimos7.filter((m) => m.visualizaciones !== null);
+      const visualizaciones7 = conVis.length
+        ? conVis.reduce((s, m) => s + m.visualizaciones, 0) : null;
+      return { seguidores: ultima.seguidores, variacion, visualizaciones7 };
+    }
+
+    // ---------- Pintado de tarjetas ----------
+    function htmlTarjeta(red, cuenta, resumen) {
+      let cuerpo, estado = '';
+      if (!cuenta) {
+        cuerpo = '<p class="sin-conectar">Sin conectar</p>';
+      } else if (!resumen) {
+        cuerpo = '<p class="sin-conectar">Conectada, sin datos todavía</p>';
+      } else {
+        cuerpo = `
+          <div class="cifras">
+            <div class="cifra"><div class="valor">${fmtNum(resumen.seguidores)}</div>
+              <div class="etiqueta">Seguidores</div></div>
+            <div class="cifra"><div class="valor">${fmtNum(resumen.visualizaciones7)}</div>
+              <div class="etiqueta">Visualizaciones 7 días</div></div>
+          </div>
+          ${htmlVariacion(resumen.variacion)}`;
+      }
+      if (cuenta) {
+        if (cuenta.error_sync) {
+          estado = `<div class="estado error">Error en la última sincronización: ${escapar(cuenta.error_sync)}</div>`;
+        } else if (cuenta.ultima_sync) {
+          estado = `<div class="estado">Última sincronización: ${fmtFechaHora(cuenta.ultima_sync)}</div>`;
+        } else {
+          estado = '<div class="estado">Aún no se ha sincronizado</div>';
+        }
+      }
+      const nombreCuenta = cuenta && cuenta.nombre_cuenta ? escapar(cuenta.nombre_cuenta) : '';
+      return `<article class="tarjeta ${red.clave}">
+        <h3>${red.nombre} <span>${nombreCuenta}</span></h3>
+        ${cuerpo}${estado}
+      </article>`;
+    }
+
+    // ---------- Carga del Resumen ----------
+    async function cargarResumen() {
+      const aviso = $('aviso-global');
+      aviso.hidden = true;
+      const { data: cuentas, error } = await sb.from('cuentas').select('*');
+      if (error) {
+        aviso.textContent = 'No se pudieron leer las cuentas: ' + error.message;
+        aviso.hidden = false;
+        $('tarjetas').innerHTML = '';
+        return;
+      }
+      const porRed = Object.fromEntries((cuentas || []).map((c) => [c.red, c]));
+      const ids = (cuentas || []).map((c) => c.id);
+
+      // Métricas de los últimos 8 días de todas las cuentas en una sola consulta.
+      const metricasPorCuenta = {};
+      if (ids.length) {
+        const desde = new Date(Date.now() - 8 * 86400000).toISOString().slice(0, 10);
+        const { data: metricas, error: errM } = await sb.from('metricas_diarias')
+          .select('cuenta_id, fecha, seguidores, visualizaciones')
+          .in('cuenta_id', ids).gte('fecha', desde).order('fecha', { ascending: false });
+        if (errM) {
+          aviso.textContent = 'No se pudieron leer las métricas: ' + errM.message;
+          aviso.hidden = false;
+        } else {
+          for (const m of metricas) (metricasPorCuenta[m.cuenta_id] ||= []).push(m);
+        }
+      }
+
+      $('tarjetas').innerHTML = REDES.map((red) => {
+        const cuenta = porRed[red.clave] || null;
+        const resumen = cuenta ? calcularResumen(metricasPorCuenta[cuenta.id] || []) : null;
+        return htmlTarjeta(red, cuenta, resumen);
+      }).join('');
+    }
+
+    // ---------- Arranque ----------
+    async function arrancar() {
+      if (!sb) {
+        mostrar('login');
+        $('form-login').hidden = true;
+        mostrarErrorLogin('Falta la anon key en config.js. El panel no puede conectar con Supabase.');
+        return;
+      }
+      sb.auth.onAuthStateChange((_evento, sesion) => {
+        if (sesion) {
+          $('usuario-actual').textContent = sesion.user.email;
+          mostrar('resumen');
+          cargarResumen();
+        } else {
+          mostrar('login');
+        }
+      });
+      const { data: { session } } = await sb.auth.getSession();
+      if (!session) mostrar('login');
+    }
+    arrancar();
+  </script>
+</body>
+</html>
