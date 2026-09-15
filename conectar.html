@@ -127,7 +127,7 @@
         response_type: 'code',
         scope: SCOPES,
         access_type: 'offline',   // para recibir refresh_token
-        prompt: 'consent',        // fuerza a Google a devolver refresh_token siempre
+        prompt: 'consent select_account', // fuerza refresh_token y a elegir cuenta siempre
         include_granted_scopes: 'true',
         state,
       });
