@@ -18,6 +18,8 @@
     header { background: #111827; color: #fff; padding: 14px 16px; display: flex;
       justify-content: space-between; align-items: center; }
     header h1 { margin: 0; font-size: 1.1rem; font-weight: 600; }
+    header a { color: #fff; font-size: 0.85rem; text-decoration: none; border: 1px solid #4b5563;
+      border-radius: 6px; padding: 6px 10px; margin-right: 8px; }
     header button { background: transparent; color: #fff; border: 1px solid #4b5563;
       border-radius: 6px; padding: 6px 10px; font-size: 0.85rem; }
     main { padding: 16px; max-width: 900px; margin: 0 auto; }
@@ -68,7 +70,10 @@
 <body>
   <header>
     <h1>Centro de Mando Redes</h1>
-    <button id="btn-salir" hidden>Salir</button>
+    <span>
+      <a id="enlace-ajustes" href="conectar.html" hidden>Ajustes</a>
+      <button id="btn-salir" hidden>Salir</button>
+    </span>
   </header>
 
   <main>
@@ -126,6 +131,7 @@
       $('pantalla-login').hidden = pantalla !== 'login';
       $('pantalla-resumen').hidden = pantalla !== 'resumen';
       $('btn-salir').hidden = pantalla !== 'resumen';
+      $('enlace-ajustes').hidden = pantalla !== 'resumen';
     }
 
     function mostrarErrorLogin(texto) {

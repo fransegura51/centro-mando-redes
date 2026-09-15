@@ -8,3 +8,4 @@
 El bloque pegado en el SQL Editor inserta también estas versiones en
 `supabase_migrations.schema_migrations`, de modo que un futuro `supabase db push`
 las considera ya aplicadas y no las repite.
+| 20260915000003 | cron_youtube.sql | SQL Editor del dashboard (bloque `supabase/paso3_cron.sql`) | pendiente |

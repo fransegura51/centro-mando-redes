@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#111827">
+  <title>Ajustes · Centro de Mando Redes</title>
+  <style>
+    :root {
+      --fondo: #f3f4f6; --tarjeta: #ffffff; --texto: #111827; --suave: #6b7280;
+      --borde: #e5e7eb; --primario: #2563eb; --error: #b91c1c; --error-fondo: #fee2e2;
+      --ok: #15803d; --ok-fondo: #dcfce7; --youtube: #ff0000;
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+      background: var(--fondo); color: var(--texto); font-size: 16px; }
+    header { background: #111827; color: #fff; padding: 14px 16px; display: flex;
+      justify-content: space-between; align-items: center; }
+    header h1 { margin: 0; font-size: 1.1rem; font-weight: 600; }
+    header a { color: #fff; font-size: 0.9rem; text-decoration: none; border: 1px solid #4b5563;
+      border-radius: 6px; padding: 6px 10px; }
+    main { padding: 16px; max-width: 700px; margin: 0 auto; }
+    [hidden] { display: none !important; }
+    h2 { font-size: 1.05rem; margin: 0 0 12px; }
+    .tarjeta { background: var(--tarjeta); border: 1px solid var(--borde); border-radius: 10px;
+      padding: 14px 16px; border-left: 5px solid var(--youtube); margin-bottom: 12px; }
+    .tarjeta h3 { margin: 0 0 6px; font-size: 1rem; }
+    .estado { font-size: 0.9rem; color: var(--suave); margin: 4px 0; }
+    .estado.error { color: var(--error); }
+    .botones { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 12px; }
+    button { padding: 11px 16px; font-size: 0.95rem; border: 0; border-radius: 6px;
+      background: var(--primario); color: #fff; cursor: pointer; }
+    button.secundario { background: #fff; color: var(--texto); border: 1px solid var(--borde); }
+    button:disabled { opacity: 0.6; }
+    .mensaje { margin-top: 12px; padding: 10px; border-radius: 6px; font-size: 0.9rem; }
+    .mensaje.ok { background: var(--ok-fondo); color: var(--ok); }
+    .mensaje.error { background: var(--error-fondo); color: var(--error); }
+    #cargando { text-align: center; color: var(--suave); }
+    .nota { font-size: 0.8rem; color: var(--suave); margin-top: 10px; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Ajustes</h1>
+    <a href="index.html">← Resumen</a>
+  </header>
+
+  <main>
+    <p id="cargando">Cargando…</p>
+
+    <section id="contenido" hidden>
+      <h2>Conexiones</h2>
+
+      <article class="tarjeta">
+        <h3>YouTube</h3>
+        <div id="yt-estado" class="estado"></div>
+        <div id="yt-sync" class="estado"></div>
+        <div class="botones">
+          <button id="btn-conectar">Conectar YouTube</button>
+          <button id="btn-sincronizar" class="secundario">Sincronizar ahora</button>
+        </div>
+        <div id="yt-mensaje" class="mensaje" hidden></div>
+        <p class="nota">Al conectar, entra con la cuenta de Google que es propietaria del canal.
+          Si Google avisa de que la app no está verificada, pulsa "Configuración avanzada" y continúa:
+          es tu propia app, de uso privado.</p>
+      </article>
+    </section>
+  </main>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+  <script src="config.js"></script>
+  <script>
+    const CONFIG = window.CMR_CONFIG || {};
+    const $ = (id) => document.getElementById(id);
+    const REDIRECT_URI = location.origin + location.pathname; // esta misma página, sin parámetros
+    const SCOPES = 'https://www.googleapis.com/auth/youtube.readonly https://www.googleapis.com/auth/yt-analytics.readonly';
+
+    const sb = supabase.createClient(CONFIG.SUPABASE_URL, CONFIG.SUPABASE_ANON_KEY, {
+      auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: false },
+    });
+
+    function mensaje(texto, tipo) {
+      const caja = $('yt-mensaje');
+      caja.textContent = texto;
+      caja.className = 'mensaje ' + tipo;
+      caja.hidden = !texto;
+    }
+
+    const fmtFechaHora = (iso) => new Date(iso).toLocaleString('es-ES', {
+      day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+
+    // ---------- Estado de la conexión ----------
+    async function cargarEstado() {
+      const { data: cuenta, error } = await sb.from('cuentas').select('*').eq('red', 'youtube').maybeSingle();
+      if (error) { mensaje('No se pudo leer el estado: ' + error.message, 'error'); return; }
+      if (!cuenta) {
+        $('yt-estado').textContent = 'Sin conectar';
+        $('yt-sync').textContent = '';
+        $('btn-sincronizar').disabled = true;
+        return;
+      }
+      $('yt-estado').textContent = 'Conectada: ' + (cuenta.nombre_cuenta || cuenta.id_externo || '');
+      $('btn-sincronizar').disabled = false;
+      const sync = $('yt-sync');
+      if (cuenta.error_sync) {
+        sync.className = 'estado error';
+        sync.textContent = 'Error en la última sincronización: ' + cuenta.error_sync;
+      } else {
+        sync.className = 'estado';
+        sync.textContent = cuenta.ultima_sync
+          ? 'Última sincronización: ' + fmtFechaHora(cuenta.ultima_sync)
+          : 'Aún no se ha sincronizado';
+      }
+    }
+
+    // ---------- Conectar (OAuth de Google) ----------
+    $('btn-conectar').addEventListener('click', () => {
+      if (!CONFIG.GOOGLE_CLIENT_ID) {
+        mensaje('Falta GOOGLE_CLIENT_ID en config.js.', 'error');
+        return;
+      }
+      const state = crypto.randomUUID();
+      sessionStorage.setItem('oauth_state', state);
+      const params = new URLSearchParams({
+        client_id: CONFIG.GOOGLE_CLIENT_ID,
+        redirect_uri: REDIRECT_URI,
+        response_type: 'code',
+        scope: SCOPES,
+        access_type: 'offline',   // para recibir refresh_token
+        prompt: 'consent',        // fuerza a Google a devolver refresh_token siempre
+        include_granted_scopes: 'true',
+        state,
+      });
+      location.href = 'https://accounts.google.com/o/oauth2/v2/auth?' + params;
+    });
+
+    // Vuelta de Google con ?code=...&state=...
+    async function procesarVueltaOAuth() {
+      const url = new URL(location.href);
+      const code = url.searchParams.get('code');
+      const state = url.searchParams.get('state');
+      const errorGoogle = url.searchParams.get('error');
+      if (!code && !errorGoogle) return;
+
+      history.replaceState(null, '', REDIRECT_URI); // limpia la URL
+      if (errorGoogle) { mensaje('Google no dio permiso: ' + errorGoogle, 'error'); return; }
+      if (state !== sessionStorage.getItem('oauth_state')) {
+        mensaje('La respuesta de Google no coincide con la petición. Vuelve a pulsar Conectar.', 'error');
+        return;
+      }
+      sessionStorage.removeItem('oauth_state');
+
+      mensaje('Guardando la conexión…', 'ok');
+      $('btn-conectar').disabled = true;
+      const { data, error } = await sb.functions.invoke('oauth-callback', {
+        body: { code, redirect_uri: REDIRECT_URI },
+      });
+      $('btn-conectar').disabled = false;
+      if (error || data?.error) {
+        mensaje('No se pudo conectar: ' + (data?.error || await textoError(error)), 'error');
+        return;
+      }
+      mensaje('YouTube conectado: ' + data.canal + '. Pulsa "Sincronizar ahora" para traer los datos.', 'ok');
+      await cargarEstado();
+    }
+
+    // ---------- Sincronizar ahora ----------
+    $('btn-sincronizar').addEventListener('click', async () => {
+      $('btn-sincronizar').disabled = true;
+      mensaje('Sincronizando con YouTube…', 'ok');
+      const { data, error } = await sb.functions.invoke('sync-youtube', { body: { origen: 'panel' } });
+      $('btn-sincronizar').disabled = false;
+      if (error || data?.error) {
+        mensaje('Error al sincronizar: ' + (data?.error || await textoError(error)), 'error');
+      } else {
+        mensaje(`Sincronizado: ${data.videos} vídeos y ${data.dias} días de métricas de ${data.canal}.`, 'ok');
+      }
+      await cargarEstado();
+    });
+
+    // supabase-js envuelve los errores HTTP; intenta sacar el mensaje del cuerpo.
+    async function textoError(error) {
+      try {
+        const cuerpo = await error.context?.json?.();
+        if (cuerpo?.error) return cuerpo.error;
+      } catch (_) { /* sin cuerpo */ }
+      return error?.message || 'error desconocido';
+    }
+
+    // ---------- Arranque ----------
+    async function arrancar() {
+      const { data: { session } } = await sb.auth.getSession();
+      if (!session) { location.replace('index.html'); return; }
+      $('cargando').hidden = true;
+      $('contenido').hidden = false;
+      await cargarEstado();
+      await procesarVueltaOAuth();
+    }
+    arrancar();
+  </script>
+</body>
+</html>
