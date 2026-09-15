@@ -1,4 +1,4 @@
-// Edge Function: sync-youtube
+// Edge Function: sonyc-youtube
 // Renueva el access_token con el refresh_token, pide a YouTube los datos del
 // canal, los últimos 50 vídeos y las métricas diarias de la última semana, y
 // los guarda en `videos` y `metricas_diarias`.
@@ -220,7 +220,7 @@ Deno.serve(async (req) => {
     return json({ ok: true, ...resultado });
   } catch (e) {
     const mensaje = String((e as Error).message ?? e).slice(0, 500);
-    console.error("sync-youtube:", mensaje);
+    console.error("sonyc-youtube:", mensaje);
     await admin.from("cuentas").update({ error_sync: mensaje }).eq("id", cuenta.id);
     return json({ error: mensaje }, 500);
   }

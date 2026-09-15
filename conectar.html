@@ -168,7 +168,7 @@
     $('btn-sincronizar').addEventListener('click', async () => {
       $('btn-sincronizar').disabled = true;
       mensaje('Sincronizando con YouTube…', 'ok');
-      const { data, error } = await sb.functions.invoke('sync-youtube', { body: { origen: 'panel' } });
+      const { data, error } = await sb.functions.invoke('sonyc-youtube', { body: { origen: 'panel' } });
       $('btn-sincronizar').disabled = false;
       if (error || data?.error) {
         mensaje('Error al sincronizar: ' + (data?.error || await textoError(error)), 'error');
