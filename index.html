@@ -79,6 +79,7 @@
   <header>
     <h1>Centro de Mando Redes</h1>
     <span>
+      <a id="enlace-produccion" href="produccion.html" hidden>Producción</a>
       <a id="enlace-ajustes" href="conectar.html" hidden>Ajustes</a>
       <button id="btn-salir" hidden>Salir</button>
     </span>
@@ -140,6 +141,7 @@
       $('pantalla-resumen').hidden = pantalla !== 'resumen';
       $('btn-salir').hidden = pantalla !== 'resumen';
       $('enlace-ajustes').hidden = pantalla !== 'resumen';
+      $('enlace-produccion').hidden = pantalla !== 'resumen';
     }
 
     function mostrarErrorLogin(texto) {

@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#111827">
+  <link rel="manifest" href="manifest.json">
+  <link rel="icon" type="image/svg+xml" href="icon.svg">
+  <link rel="apple-touch-icon" href="icon-180.png">
+  <title>Producción — Centro de Mando Redes</title>
+  <style>
+    :root {
+      --fondo: #f3f4f6; --tarjeta: #ffffff; --texto: #111827; --suave: #6b7280;
+      --borde: #e5e7eb; --primario: #2563eb; --error: #b91c1c; --error-fondo: #fee2e2;
+      --ok: #15803d; --aviso: #b45309;
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+      background: var(--fondo); color: var(--texto); font-size: 16px; }
+    header { background: #111827; color: #fff; padding: 14px 16px; display: flex;
+      justify-content: space-between; align-items: center; }
+    header h1 { margin: 0; font-size: 1.1rem; font-weight: 600; }
+    header a { color: #fff; font-size: 0.85rem; text-decoration: none; border: 1px solid #4b5563;
+      border-radius: 6px; padding: 6px 10px; }
+    main { padding: 16px; max-width: 900px; margin: 0 auto; }
+    [hidden] { display: none !important; }
+    .titulo-seccion { display: flex; justify-content: space-between; align-items: baseline;
+      margin: 20px 0 10px; }
+    .titulo-seccion h2 { margin: 0; font-size: 1.05rem; }
+    .titulo-seccion small { color: var(--suave); }
+    .lista { display: grid; grid-template-columns: 1fr; gap: 12px; }
+    .tarjeta { background: var(--tarjeta); border: 1px solid var(--borde); border-radius: 10px;
+      padding: 14px 16px; }
+    .tarjeta h3 { margin: 0 0 4px; font-size: 1rem; }
+    .tarjeta h3 .codigo { color: var(--suave); font-weight: 400; margin-right: 6px; }
+    .personajes { font-size: 0.8rem; color: var(--suave); margin-bottom: 8px; }
+    .guion { white-space: pre-wrap; font-size: 0.95rem; line-height: 1.4; margin: 8px 0; }
+    details { margin: 8px 0; font-size: 0.9rem; }
+    summary { cursor: pointer; color: var(--suave); }
+    details pre { white-space: pre-wrap; margin: 6px 0 0; font: inherit; line-height: 1.4;
+      background: var(--fondo); padding: 10px; border-radius: 6px; }
+    .acciones { display: flex; gap: 8px; margin-top: 12px; flex-wrap: wrap; }
+    button { font-size: 1rem; padding: 12px 14px; border-radius: 6px; border: 1px solid var(--borde);
+      background: #fff; color: var(--texto); cursor: pointer; }
+    button.principal { background: var(--primario); border-color: var(--primario); color: #fff;
+      flex: 1 1 100%; }
+    button.secundario { flex: 1; font-size: 0.9rem; }
+    button:disabled { opacity: 0.6; }
+    label { display: block; font-size: 0.8rem; color: var(--suave); margin: 10px 0 4px; }
+    input, textarea { width: 100%; padding: 10px; font: inherit; border: 1px solid var(--borde);
+      border-radius: 6px; }
+    textarea { min-height: 110px; }
+    .etiqueta-estado { font-size: 0.8rem; color: var(--suave); margin-top: 8px; }
+    .motivo { font-size: 0.85rem; color: var(--error); margin-top: 6px; }
+    .aviso-global { padding: 10px 12px; border-radius: 6px; background: #fef3c7;
+      color: var(--aviso); font-size: 0.9rem; margin-bottom: 12px; }
+    .vacio { color: var(--suave); font-style: italic; }
+    #cargando { text-align: center; color: var(--suave); }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Producción</h1>
+    <a href="index.html">Resumen</a>
+  </header>
+  <main>
+    <div id="aviso-global" class="aviso-global" hidden></div>
+    <p id="cargando">Cargando…</p>
+    <div id="contenido" hidden></div>
+  </main>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+  <script src="config.js"></script>
+  <script>
+    const CONFIG = window.CMR_CONFIG || {};
+    const $ = (id) => document.getElementById(id);
+    const sb = supabase.createClient(CONFIG.SUPABASE_URL, CONFIG.SUPABASE_ANON_KEY, {
+      auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: false },
+    });
+
+    // Grupos de estados, en el orden en que se muestran.
+    const GRUPOS = [
+      { titulo: 'Por aprobar', estados: ['borrador'] },
+      { titulo: 'Listos para Flow', estados: ['aprobado_guion'] },
+      { titulo: 'En marcha', estados: ['video_subido', 'pendiente_revision', 'aprobado_publicar'] },
+      { titulo: 'Publicados', estados: ['publicado'] },
+      { titulo: 'Rechazados', estados: ['rechazado'] },
+    ];
+    const NOMBRE_ESTADO = {
+      borrador: 'Borrador', aprobado_guion: 'Guion aprobado', video_subido: 'Vídeo subido',
+      pendiente_revision: 'Pendiente de revisión', aprobado_publicar: 'Aprobado para publicar',
+      publicado: 'Publicado', rechazado: 'Rechazado',
+    };
+
+    let guiones = [];
+    let editando = null; // id del guion en edición
+
+    function escapar(t) {
+      return String(t ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+    }
+
+    function avisar(texto) {
+      const a = $('aviso-global');
+      a.textContent = texto || '';
+      a.hidden = !texto;
+    }
+
+    function htmlEdicion(g) {
+      return `<article class="tarjeta" data-id="${g.id}">
+        <h3><span class="codigo">${escapar(g.codigo)}</span>Editar guion</h3>
+        <label>Título</label><input data-campo="titulo" value="${escapar(g.titulo)}">
+        <label>Guion</label><textarea data-campo="guion">${escapar(g.guion)}</textarea>
+        <label>Prompt para Flow</label><textarea data-campo="prompt_flow">${escapar(g.prompt_flow)}</textarea>
+        <label>Texto de publicación</label><textarea data-campo="texto_publicacion">${escapar(g.texto_publicacion)}</textarea>
+        <label>Hashtags</label><input data-campo="hashtags" value="${escapar(g.hashtags)}">
+        <div class="acciones">
+          <button class="principal" data-accion="guardar">Guardar cambios</button>
+          <button class="secundario" data-accion="cancelar">Cancelar</button>
+        </div>
+      </article>`;
+    }
+
+    function htmlTarjeta(g) {
+      if (editando === g.id) return htmlEdicion(g);
+      let acciones = '';
+      if (g.estado === 'borrador') {
+        acciones = `<button class="principal" data-accion="aprobar">Aprobar guion</button>
+          <button class="secundario" data-accion="editar">Editar</button>
+          <button class="secundario" data-accion="rechazar">Rechazar</button>`;
+      } else if (g.estado === 'aprobado_guion') {
+        acciones = `<button class="principal" data-accion="copiar">Copiar prompt</button>
+          <button class="secundario" data-accion="editar">Editar</button>`;
+      } else if (g.estado === 'rechazado') {
+        acciones = `<button class="secundario" data-accion="reabrir">Volver a borrador</button>`;
+      }
+      const nota = g.fotogramas_notas
+        ? `<details><summary>Fotogramas de referencia</summary><pre>${escapar(g.fotogramas_notas)}</pre></details>` : '';
+      const motivo = g.estado === 'rechazado' && g.motivo_rechazo
+        ? `<div class="motivo">Motivo: ${escapar(g.motivo_rechazo)}</div>` : '';
+      return `<article class="tarjeta" data-id="${g.id}">
+        <h3><span class="codigo">${escapar(g.codigo)}</span>${escapar(g.titulo)}</h3>
+        <div class="personajes">${escapar((g.personajes || []).join(', '))}</div>
+        <div class="guion">${escapar(g.guion)}</div>
+        <details><summary>Prompt para Flow</summary><pre>${escapar(g.prompt_flow)}</pre></details>
+        ${nota}
+        <details><summary>Texto de publicación</summary><pre>${escapar(g.texto_publicacion)}\n\n${escapar(g.hashtags)}</pre></details>
+        <div class="etiqueta-estado">${NOMBRE_ESTADO[g.estado] || escapar(g.estado)}</div>
+        ${motivo}
+        ${acciones ? `<div class="acciones">${acciones}</div>` : ''}
+      </article>`;
+    }
+
+    function pintar() {
+      const partes = GRUPOS.map((gr) => {
+        const items = guiones.filter((g) => gr.estados.includes(g.estado));
+        if (!items.length && gr.titulo !== 'Por aprobar') return '';
+        const cuerpo = items.length ? items.map(htmlTarjeta).join('') : '<p class="vacio">Nada pendiente.</p>';
+        return `<div class="titulo-seccion"><h2>${gr.titulo}</h2><small>${items.length}</small></div>
+          <div class="lista">${cuerpo}</div>`;
+      });
+      $('contenido').innerHTML = partes.join('');
+    }
+
+    async function cargar() {
+      const { data, error } = await sb.from('guiones').select('*').order('codigo');
+      $('cargando').hidden = true;
+      $('contenido').hidden = false;
+      if (error) { avisar('No se pudieron leer los guiones: ' + error.message); return; }
+      avisar('');
+      guiones = data || [];
+      pintar();
+    }
+
+    async function actualizar(id, cambios) {
+      const { error } = await sb.from('guiones').update(cambios).eq('id', id);
+      if (error) { avisar('No se pudo guardar: ' + error.message); return false; }
+      avisar('');
+      Object.assign(guiones.find((g) => g.id === id), cambios);
+      return true;
+    }
+
+    $('contenido').addEventListener('click', async (ev) => {
+      const boton = ev.target.closest('button[data-accion]');
+      if (!boton) return;
+      const tarjeta = boton.closest('[data-id]');
+      const id = tarjeta.dataset.id;
+      const g = guiones.find((x) => x.id === id);
+      const accion = boton.dataset.accion;
+      boton.disabled = true;
+      try {
+        if (accion === 'aprobar') {
+          await actualizar(id, { estado: 'aprobado_guion', motivo_rechazo: null });
+        } else if (accion === 'rechazar') {
+          const motivo = prompt('¿Por qué lo rechazas? (opcional)');
+          if (motivo === null) return;
+          await actualizar(id, { estado: 'rechazado', motivo_rechazo: motivo.trim() || null });
+        } else if (accion === 'reabrir') {
+          await actualizar(id, { estado: 'borrador', motivo_rechazo: null });
+        } else if (accion === 'editar') {
+          editando = id;
+        } else if (accion === 'cancelar') {
+          editando = null;
+        } else if (accion === 'guardar') {
+          const cambios = {};
+          tarjeta.querySelectorAll('[data-campo]').forEach((el) => { cambios[el.dataset.campo] = el.value; });
+          if (!cambios.titulo.trim() || !cambios.guion.trim() || !cambios.prompt_flow.trim()) {
+            avisar('Título, guion y prompt no pueden quedar vacíos.');
+            return;
+          }
+          if (await actualizar(id, cambios)) editando = null;
+        } else if (accion === 'copiar') {
+          try {
+            await navigator.clipboard.writeText(g.prompt_flow);
+            boton.textContent = '¡Copiado!';
+            setTimeout(() => { boton.textContent = 'Copiar prompt'; }, 1500);
+          } catch (e) {
+            avisar('No se pudo copiar automáticamente; ábrelo en "Prompt para Flow" y cópialo a mano.');
+          }
+          return;
+        }
+        pintar();
+      } finally {
+        boton.disabled = false;
+      }
+    });
+
+    (async () => {
+      const { data: { session } } = await sb.auth.getSession();
+      if (!session) { location.replace('index.html'); return; }
+      sb.auth.onAuthStateChange((_e, s) => { if (!s) location.replace('index.html'); });
+      cargar();
+    })();
+  </script>
+</body>
+</html>
