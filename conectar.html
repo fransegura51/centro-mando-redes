@@ -81,7 +81,8 @@
     const CONFIG = window.CMR_CONFIG || {};
     const $ = (id) => document.getElementById(id);
     const REDIRECT_URI = location.origin + location.pathname; // esta misma página, sin parámetros
-    const SCOPES = 'https://www.googleapis.com/auth/youtube.readonly https://www.googleapis.com/auth/yt-analytics.readonly';
+    // youtube.upload: permite a la función `publicar` subir los vídeos que el usuario aprueba.
+    const SCOPES = 'https://www.googleapis.com/auth/youtube.readonly https://www.googleapis.com/auth/yt-analytics.readonly https://www.googleapis.com/auth/youtube.upload';
 
     const sb = supabase.createClient(CONFIG.SUPABASE_URL, CONFIG.SUPABASE_ANON_KEY, {
       auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: false },
