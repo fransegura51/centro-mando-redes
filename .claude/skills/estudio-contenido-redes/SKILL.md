@@ -72,6 +72,15 @@ El nombre del fichero descargado debe empezar por el código del guion
 guiones, aprobar/rechazar/editar y botón Copiar prompt. Claude escribe el
 primer lote de 7 guiones directamente en la tabla (SQL o script).
 
+> **Estado (2026-10-03):** fase 1 hecha y en uso. Fase 2 hecha: `scripts/procesar.js`
+> (+ `instalar-ffmpeg.bat`, `procesar-videos.bat`), ffmpeg instalado y probado; subida
+> a Storage lista pero necesita `.env` con la clave de servicio (la pone el usuario).
+> Fases 3-6 escritas, SIN desplegar ni probar: panel (revisión, programación, paquete
+> TikTok) en `produccion.html`, migración `20261003000003_publicacion.sql` aplicada,
+> función `supabase/functions/publicar` pendiente de desplegar por el usuario,
+> cron en `supabase/paso4_cron_publicar.sql`, falta scope `youtube.upload` en
+> `conectar.html` y secretos de Meta. Fase 7 (Flow) en curso: ver `flow-automatico`.
+
 **Fase 2 — Edición local (script, 0 tokens al usarlo).** Script `procesar`
 (Node o Python, el que ya haya en la máquina; doble clic o un comando):
 1. Detecta ficheros nuevos en `videos\entrada`.
@@ -135,6 +144,29 @@ que el usuario lo pida expresamente.
   fotogramas de referencia usar, texto de publicación y hashtags.
 - Idioma del contenido: el de las cuentas (preguntar si no consta).
 - No repetir ideas de los últimos 30 guiones (consultar solo títulos).
+- **Diálogo en el prompt para Flow:** el prompt incluye, línea por línea, lo que
+  dice cada personaje con el formato `PACO: "..."`, `JENNIFER: "..."`, indicando
+  la voz de cada uno (PACO: voz masculina adulta, cálida y algo grave; JENNIFER:
+  voz femenina adulta, clara y tranquila; DAVID y ÁLVARO: voz masculina joven;
+  ajustar si el usuario lo corrige). Así Flow dice lo aprobado y no inventa frases.
+- **Una sola boca a la vez (fallo visto en G-001):** en el prompt, cada línea
+  indica quién habla y que el otro personaje permanece con la boca cerrada,
+  escuchando, hasta su turno ("mientras PACO habla, JENNIFER tiene la boca cerrada
+  y lo mira"). Nunca diálogos simultáneos ni solapados. Un clip, pocas líneas.
+- **Siempre 3D:** todo prompt lleva esta línea fija de estilo, tal cual:
+  "Animación 3D de dibujos animados, personajes con aspecto de dibujo animado en
+  3D, no fotorrealista, aunque las referencias de lugares sean fotos reales".
+  Nunca "estilo realista".
+- **Peticiones desde el panel:** el botón "Generar guiones" guarda una fila en
+  `peticiones_guiones` (cantidad 1-14, estado `pendiente`). Cuando el usuario diga
+  "genera los guiones pendientes": leer las peticiones pendientes (solo id y
+  cantidad), escribir esa cantidad de guiones con estas reglas (códigos G-### a
+  continuación del último), insertarlos en `guiones` en estado `borrador` y marcar
+  la petición como `atendida`. Coste cero: sin APIs de IA de pago; lo hace Claude
+  en la sesión. Si no hay acceso de escritura a Supabase, entregar un SQL con los
+  INSERT para que el usuario lo pegue en el SQL Editor.
+- **Coste:** nunca gasto de dinero real; solo créditos/puntos del plan. Ver
+  `flow-automatico` para las reglas de Flow.
 
 ## Diseño de la pestaña
 

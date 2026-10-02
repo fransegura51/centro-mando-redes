@@ -56,6 +56,12 @@
       color: var(--aviso); font-size: 0.9rem; margin-bottom: 12px; }
     .vacio { color: var(--suave); font-style: italic; }
     #cargando { text-align: center; color: var(--suave); }
+    label.check { display: flex; align-items: center; gap: 8px; color: var(--texto);
+      font-size: 0.95rem; margin: 6px 0; }
+    label.check input { width: auto; }
+    video.reproductor { width: 100%; max-height: 70vh; background: #000; border-radius: 8px; margin-top: 8px; }
+    .pub { font-size: 0.85rem; margin-top: 4px; }
+    .pub .error { color: var(--error); }
   </style>
 </head>
 <body>
@@ -82,7 +88,8 @@
     const GRUPOS = [
       { titulo: 'Por aprobar', estados: ['borrador'] },
       { titulo: 'Listos para Flow', estados: ['aprobado_guion'] },
-      { titulo: 'En marcha', estados: ['video_subido', 'pendiente_revision', 'aprobado_publicar'] },
+      { titulo: 'Revisar vídeo', estados: ['pendiente_revision'] },
+      { titulo: 'En marcha', estados: ['video_subido', 'aprobado_publicar'] },
       { titulo: 'Publicados', estados: ['publicado'] },
       { titulo: 'Rechazados', estados: ['rechazado'] },
     ];
@@ -93,6 +100,11 @@
     };
 
     const MAX_PETICION = 14;
+    const BUCKET_VIDEOS = 'videos-editados';
+    const PLATAFORMAS = [['youtube', 'YouTube'], ['instagram', 'Instagram'], ['facebook', 'Facebook'], ['tiktok', 'TikTok (lo subes tú, te dejo todo listo)']];
+    const NOMBRE_PLAT = { youtube: 'YouTube', instagram: 'Instagram', facebook: 'Facebook', tiktok: 'TikTok' };
+    const NOMBRE_PUB = { pendiente: 'programado', publicando: 'publicando…', publicado: 'publicado', error: 'con error', manual: 'pendiente de subir a mano' };
+    let publicaciones = [];
     let guiones = [];
     let pendientes = 0; // peticiones de guiones sin atender
     let editando = null; // id del guion en edición
@@ -123,9 +135,55 @@
       </article>`;
     }
 
+    function fechaEs(iso) {
+      return new Date(iso).toLocaleString('es-ES', { timeZone: 'Europe/Madrid', dateStyle: 'short', timeStyle: 'short' });
+    }
+
+    function htmlRevision(g) {
+      const redes = PLATAFORMAS.map(([k, n]) =>
+        `<label class="check"><input type="checkbox" data-plataforma="${k}" checked> ${n}</label>`).join('');
+      return `<video class="reproductor" data-ruta="${escapar(g.codigo)}.mp4" controls playsinline preload="metadata"></video>
+        <label>Cuándo publicar</label>
+        <select data-campo="cuando">
+          <option value="ya">Publicar ya</option>
+          <option value="fecha">Elegir fecha y hora</option>
+        </select>
+        <input type="datetime-local" data-campo="fecha" hidden>
+        <label>Dónde</label>${redes}`;
+    }
+
+    function htmlSeguimiento(g) {
+      const mias = publicaciones.filter((p) => p.guion_id === g.id);
+      if (!mias.length) return '';
+      const lineas = mias.map((p) => {
+        const estado = NOMBRE_PUB[p.estado] || escapar(p.estado);
+        const cuando = p.estado === 'pendiente' || p.estado === 'manual' ? ` · ${fechaEs(p.programado_para)}` : '';
+        const enlace = p.url_publicada ? ` · <a href="${escapar(p.url_publicada)}" target="_blank" rel="noopener">ver</a>` : '';
+        const err = p.estado === 'error' && p.error_texto ? `<div class="error">${escapar(p.error_texto)}</div>` : '';
+        const botones = [];
+        if (p.estado === 'error') botones.push(`<button class="secundario" data-accion="reintentar" data-pub="${p.id}">Reintentar</button>`);
+        if (p.plataforma === 'tiktok' && p.estado === 'manual') {
+          botones.push(`<button class="secundario" data-accion="tiktok_descargar">Descargar vídeo</button>`);
+          botones.push(`<button class="secundario" data-accion="tiktok_copiar">Copiar texto</button>`);
+          botones.push(`<button class="secundario" data-accion="tiktok_hecho" data-pub="${p.id}">Ya lo subí a TikTok</button>`);
+        }
+        return `<div class="pub"><strong>${NOMBRE_PLAT[p.plataforma] || escapar(p.plataforma)}</strong>: ${estado}${cuando}${enlace}${err}
+          ${botones.length ? `<div class="acciones">${botones.join('')}</div>` : ''}</div>`;
+      });
+      return `<div class="guion" style="margin-top:10px">${lineas.join('')}</div>`;
+    }
+
     function htmlTarjeta(g) {
       if (editando === g.id) return htmlEdicion(g);
       let acciones = '';
+      let extra = '';
+      if (g.estado === 'pendiente_revision') {
+        extra = htmlRevision(g);
+        acciones = `<button class="principal" data-accion="aprobar_video">Aprobar y programar</button>
+          <button class="secundario" data-accion="rechazar">Rechazar</button>`;
+      } else if (g.estado === 'aprobado_publicar' || g.estado === 'publicado') {
+        extra = htmlSeguimiento(g);
+      }
       if (g.estado === 'borrador') {
         acciones = `<button class="principal" data-accion="aprobar">Aprobar guion</button>
           <button class="secundario" data-accion="editar">Editar</button>
@@ -148,6 +206,7 @@
         <details><summary>Prompt para Flow</summary><pre>${escapar(g.prompt_flow)}</pre></details>
         ${nota}
         <details><summary>Texto de publicación</summary><pre>${escapar(g.texto_publicacion)}\n\n${escapar(g.hashtags)}</pre></details>
+        ${extra}
         <div class="etiqueta-estado">${NOMBRE_ESTADO[g.estado] || escapar(g.estado)}</div>
         ${motivo}
         ${acciones ? `<div class="acciones">${acciones}</div>` : ''}
@@ -178,6 +237,28 @@
       const valor = campo ? campo.value : '';
       $('contenido').innerHTML = partes.join('');
       if (valor) $('num-guiones').value = valor;
+      cargarVideos();
+    }
+
+    // Los vídeos están en un bucket privado: se reproducen con una URL firmada de 1 hora.
+    async function cargarVideos() {
+      for (const v of document.querySelectorAll('video[data-ruta]')) {
+        const { data } = await sb.storage.from(BUCKET_VIDEOS).createSignedUrl(v.dataset.ruta, 3600);
+        if (data && data.signedUrl) v.src = data.signedUrl;
+        else v.insertAdjacentHTML('afterend', '<p class="vacio">No se pudo cargar el vídeo.</p>');
+      }
+    }
+
+    async function recargarPublicaciones() {
+      const { data } = await sb.from('publicaciones').select('*').order('programado_para');
+      publicaciones = data || [];
+    }
+
+    async function signedUrlDescarga(codigo) {
+      const { data, error } = await sb.storage.from(BUCKET_VIDEOS)
+        .createSignedUrl(codigo + '.mp4', 600, { download: codigo + '.mp4' });
+      if (error || !data) { avisar('No se pudo preparar la descarga: ' + (error ? error.message : '')); return null; }
+      return data.signedUrl;
     }
 
     async function cargarPendientes() {
@@ -207,6 +288,7 @@
       avisar('');
       guiones = data || [];
       await cargarPendientes();
+      await recargarPublicaciones();
       pintar();
     }
 
@@ -249,6 +331,48 @@
           const motivo = prompt('¿Por qué lo rechazas? (opcional)');
           if (motivo === null) return;
           await actualizar(id, { estado: 'rechazado', motivo_rechazo: motivo.trim() || null });
+        } else if (accion === 'aprobar_video') {
+          const cuando = tarjeta.querySelector('[data-campo=cuando]').value;
+          let hora = new Date();
+          if (cuando === 'fecha') {
+            const v = tarjeta.querySelector('[data-campo=fecha]').value;
+            hora = new Date(v);
+            if (!v || isNaN(hora.getTime())) { avisar('Elige la fecha y la hora.'); return; }
+            if (hora.getTime() < Date.now() - 60000) { avisar('Esa fecha y hora ya han pasado.'); return; }
+          }
+          const redes = [...tarjeta.querySelectorAll('[data-plataforma]:checked')].map((x) => x.dataset.plataforma);
+          if (!redes.length) { avisar('Elige al menos una red.'); return; }
+          const filas = redes.map((r) => ({
+            guion_id: id, plataforma: r, ruta_video: g.codigo + '.mp4',
+            programado_para: hora.toISOString(), estado: r === 'tiktok' ? 'manual' : 'pendiente',
+          }));
+          const { error } = await sb.from('publicaciones').insert(filas);
+          if (error) { avisar('No se pudo programar: ' + error.message); return; }
+          if (await actualizar(id, { estado: 'aprobado_publicar', motivo_rechazo: null })) await recargarPublicaciones();
+        } else if (accion === 'reintentar') {
+          const { error } = await sb.from('publicaciones').update({ estado: 'pendiente' }).eq('id', boton.dataset.pub);
+          if (error) { avisar('No se pudo reintentar: ' + error.message); return; }
+          await recargarPublicaciones();
+        } else if (accion === 'tiktok_descargar') {
+          const url = await signedUrlDescarga(g.codigo);
+          if (url) window.open(url, '_blank');
+          return;
+        } else if (accion === 'tiktok_copiar') {
+          try {
+            await navigator.clipboard.writeText(`${g.texto_publicacion || ''}\n\n${g.hashtags || ''}\n\nVídeo creado con inteligencia artificial.`.trim());
+            boton.textContent = '¡Copiado!';
+            setTimeout(() => { boton.textContent = 'Copiar texto'; }, 1500);
+          } catch (e) {
+            avisar('No se pudo copiar automáticamente; abre "Texto de publicación" y cópialo a mano.');
+          }
+          return;
+        } else if (accion === 'tiktok_hecho') {
+          const { error } = await sb.from('publicaciones')
+            .update({ estado: 'publicado', publicado_en: new Date().toISOString() }).eq('id', boton.dataset.pub);
+          if (error) { avisar('No se pudo marcar: ' + error.message); return; }
+          await recargarPublicaciones();
+          const abiertas = publicaciones.filter((p) => p.guion_id === id && ['pendiente', 'publicando', 'manual', 'error'].includes(p.estado));
+          if (!abiertas.length) await actualizar(id, { estado: 'publicado' });
         } else if (accion === 'eliminar') {
           if (!confirm(`¿Seguro que quieres eliminar ${g.codigo}?`)) return;
           await eliminar(id);
@@ -279,6 +403,13 @@
         pintar();
       } finally {
         boton.disabled = false;
+      }
+    });
+
+    $('contenido').addEventListener('change', (ev) => {
+      if (ev.target.matches('[data-campo=cuando]')) {
+        const fecha = ev.target.closest('[data-id]').querySelector('[data-campo=fecha]');
+        fecha.hidden = ev.target.value !== 'fecha';
       }
     });
 
