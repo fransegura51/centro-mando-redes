@@ -101,7 +101,10 @@
 
     const MAX_PETICION = 14;
     const BUCKET_VIDEOS = 'videos-editados';
-    const PLATAFORMAS = [['youtube', 'YouTube'], ['instagram', 'Instagram'], ['facebook', 'Facebook'], ['tiktok', 'TikTok (lo subes tú, te dejo todo listo)']];
+    // Redes que se publican a mano (el panel deja el paquete listo). Para automatizar una
+    // red más adelante, quítala de MANUALES y la función `publicar` la hará sola.
+    const MANUALES = ['instagram', 'facebook', 'tiktok'];
+    const PLATAFORMAS = [['youtube', 'YouTube (automático)'], ['instagram', 'Instagram (lo subes tú, te dejo todo listo)'], ['facebook', 'Facebook (lo subes tú, te dejo todo listo)'], ['tiktok', 'TikTok (lo subes tú, te dejo todo listo)']];
     const NOMBRE_PLAT = { youtube: 'YouTube', instagram: 'Instagram', facebook: 'Facebook', tiktok: 'TikTok' };
     const NOMBRE_PUB = { pendiente: 'programado', publicando: 'publicando…', publicado: 'publicado', error: 'con error', manual: 'pendiente de subir a mano' };
     let publicaciones = [];
@@ -162,10 +165,11 @@
         const err = p.estado === 'error' && p.error_texto ? `<div class="error">${escapar(p.error_texto)}</div>` : '';
         const botones = [];
         if (p.estado === 'error') botones.push(`<button class="secundario" data-accion="reintentar" data-pub="${p.id}">Reintentar</button>`);
-        if (p.plataforma === 'tiktok' && p.estado === 'manual') {
-          botones.push(`<button class="secundario" data-accion="tiktok_descargar">Descargar vídeo</button>`);
-          botones.push(`<button class="secundario" data-accion="tiktok_copiar">Copiar texto</button>`);
-          botones.push(`<button class="secundario" data-accion="tiktok_hecho" data-pub="${p.id}">Ya lo subí a TikTok</button>`);
+        if (p.estado === 'manual') {
+          const red = NOMBRE_PLAT[p.plataforma] || p.plataforma;
+          botones.push(`<button class="secundario" data-accion="manual_descargar">Descargar vídeo</button>`);
+          botones.push(`<button class="secundario" data-accion="manual_copiar">Copiar texto</button>`);
+          botones.push(`<button class="secundario" data-accion="manual_hecho" data-pub="${p.id}">Ya lo subí a ${escapar(red)}</button>`);
         }
         return `<div class="pub"><strong>${NOMBRE_PLAT[p.plataforma] || escapar(p.plataforma)}</strong>: ${estado}${cuando}${enlace}${err}
           ${botones.length ? `<div class="acciones">${botones.join('')}</div>` : ''}</div>`;
@@ -344,7 +348,7 @@
           if (!redes.length) { avisar('Elige al menos una red.'); return; }
           const filas = redes.map((r) => ({
             guion_id: id, plataforma: r, ruta_video: g.codigo + '.mp4',
-            programado_para: hora.toISOString(), estado: r === 'tiktok' ? 'manual' : 'pendiente',
+            programado_para: hora.toISOString(), estado: MANUALES.includes(r) ? 'manual' : 'pendiente',
           }));
           const { error } = await sb.from('publicaciones').insert(filas);
           if (error) { avisar('No se pudo programar: ' + error.message); return; }
@@ -353,11 +357,11 @@
           const { error } = await sb.from('publicaciones').update({ estado: 'pendiente' }).eq('id', boton.dataset.pub);
           if (error) { avisar('No se pudo reintentar: ' + error.message); return; }
           await recargarPublicaciones();
-        } else if (accion === 'tiktok_descargar') {
+        } else if (accion === 'manual_descargar') {
           const url = await signedUrlDescarga(g.codigo);
           if (url) window.open(url, '_blank');
           return;
-        } else if (accion === 'tiktok_copiar') {
+        } else if (accion === 'manual_copiar') {
           try {
             await navigator.clipboard.writeText(`${g.texto_publicacion || ''}\n\n${g.hashtags || ''}\n\nVídeo creado con inteligencia artificial.`.trim());
             boton.textContent = '¡Copiado!';
@@ -366,7 +370,7 @@
             avisar('No se pudo copiar automáticamente; abre "Texto de publicación" y cópialo a mano.');
           }
           return;
-        } else if (accion === 'tiktok_hecho') {
+        } else if (accion === 'manual_hecho') {
           const { error } = await sb.from('publicaciones')
             .update({ estado: 'publicado', publicado_en: new Date().toISOString() }).eq('id', boton.dataset.pub);
           if (error) { avisar('No se pudo marcar: ' + error.message); return; }

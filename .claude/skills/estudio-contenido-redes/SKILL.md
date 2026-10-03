@@ -75,11 +75,13 @@ primer lote de 7 guiones directamente en la tabla (SQL o script).
 > **Estado (2026-10-03):** fase 1 hecha y en uso. Fase 2 hecha: `scripts/procesar.js`
 > (+ `instalar-ffmpeg.bat`, `procesar-videos.bat`), ffmpeg instalado y probado; subida
 > a Storage lista pero necesita `.env` con la clave de servicio (la pone el usuario).
-> Fases 3-6 escritas, SIN desplegar ni probar: panel (revisión, programación, paquete
-> TikTok) en `produccion.html`, migración `20261003000003_publicacion.sql` aplicada,
-> función `supabase/functions/publicar` pendiente de desplegar por el usuario,
-> cron en `supabase/paso4_cron_publicar.sql`, falta scope `youtube.upload` en
-> `conectar.html` y secretos de Meta. Fase 7 (Flow) en curso: ver `flow-automatico`.
+> Fases 3-6 construidas, SIN probar con un vídeo real: panel (revisión, programación,
+> paquete TikTok) publicado, migración `20261003000003_publicacion.sql` aplicada,
+> función `publicar` DESPLEGADA (verify_jwt off) y cron `publicar-cada-5-min` activo
+> (2026-10-03), YouTube reconectado con scope `youtube.upload`. Faltan: `.env` con la
+> clave de servicio para que `procesar.js` suba el vídeo, secretos de Meta
+> (Instagram/Facebook) y la primera prueba real en YouTube. Fase 7 (Flow) en curso:
+> ver `flow-automatico`.
 
 **Fase 2 — Edición local (script, 0 tokens al usarlo).** Script `procesar`
 (Node o Python, el que ya haya en la máquina; doble clic o un comando):
