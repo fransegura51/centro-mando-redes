@@ -13,3 +13,4 @@ las considera ya aplicadas y no las repite.
 | 20261003000001 | peticiones_guiones.sql | SQL Editor (pegado por el usuario, 2026-10-03) | aplicada |
 | 20261003000002 | bucket_videos_editados.sql | conector MCP (apply_migration, 2026-10-03) | aplicada |
 | 20261003000003 | publicacion.sql | conector MCP (apply_migration, 2026-10-03) | aplicada |
+| 20261003000004 | biblioteca_videos.sql | conector MCP (apply_migration, 2026-10-03) | aplicada |

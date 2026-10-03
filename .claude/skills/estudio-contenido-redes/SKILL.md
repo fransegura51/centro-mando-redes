@@ -155,6 +155,12 @@ que el usuario lo pida expresamente.
   indica quién habla y que el otro personaje permanece con la boca cerrada,
   escuchando, hasta su turno ("mientras PACO habla, JENNIFER tiene la boca cerrada
   y lo mira"). Nunca diálogos simultáneos ni solapados. Un clip, pocas líneas.
+- **3D reforzado (2026-10-03, el vídeo de G-008 salió sin ser 3D):** el prompt EMPIEZA
+  con "ESTILO OBLIGATORIO: película de animación 3D de dibujos animados (estilo Pixar),
+  personajes 3D estilizados con aspecto de muñeco animado… NO es acción real, NO es
+  fotorrealista…" y TERMINA con un "Recordatorio final de estilo" que repite lo mismo
+  (incluidos escenarios y objetos). Si el escenario de referencia es una foto real, el
+  3D se pierde: preferir escenarios generados en 3D como referencia.
 - **Siempre 3D:** todo prompt lleva esta línea fija de estilo, tal cual:
   "Animación 3D de dibujos animados, personajes con aspecto de dibujo animado en
   3D, no fotorrealista, aunque las referencias de lugares sean fotos reales".

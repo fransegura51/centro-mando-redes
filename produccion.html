@@ -104,10 +104,11 @@
     // Redes que se publican a mano (el panel deja el paquete listo). Para automatizar una
     // red más adelante, quítala de MANUALES y la función `publicar` la hará sola.
     const MANUALES = ['instagram', 'facebook', 'tiktok'];
-    const PLATAFORMAS = [['youtube', 'YouTube (automático)'], ['instagram', 'Instagram (lo subes tú, te dejo todo listo)'], ['facebook', 'Facebook (lo subes tú, te dejo todo listo)'], ['tiktok', 'TikTok (lo subes tú, te dejo todo listo)']];
+    const PLATAFORMAS = [['youtube', 'YouTube (automático)'], ['instagram', 'Instagram (lo sube el agente de Claude)'], ['facebook', 'Facebook (lo sube el agente de Claude)'], ['tiktok', 'TikTok (lo subes tú, te dejo todo listo)']];
     const NOMBRE_PLAT = { youtube: 'YouTube', instagram: 'Instagram', facebook: 'Facebook', tiktok: 'TikTok' };
-    const NOMBRE_PUB = { pendiente: 'programado', publicando: 'publicando…', publicado: 'publicado', error: 'con error', manual: 'pendiente de subir a mano' };
+    const NOMBRE_PUB = { pendiente: 'programado', publicando: 'publicando…', publicado: 'publicado', error: 'con error', manual: 'a la espera de que lo suba el agente (o tú a mano)' };
     let publicaciones = [];
+    let videosLib = []; // vídeos de la biblioteca (bucket privado)
     let guiones = [];
     let pendientes = 0; // peticiones de guiones sin atender
     let editando = null; // id del guion en edición
@@ -229,8 +230,32 @@
       </div>`;
     }
 
+    function htmlBiblioteca() {
+      const items = videosLib.map((v) => {
+        const cod = v.name.replace(/\.mp4$/i, '');
+        const g = guiones.find((x) => x.codigo === cod);
+        const mb = v.metadata && v.metadata.size ? (v.metadata.size / 1048576).toFixed(1) + ' MB' : '';
+        const fecha = v.created_at ? fechaEs(v.created_at) : '';
+        return `<div class="pub"><strong>${escapar(cod)}</strong> · ${escapar(g ? g.titulo : 'sin guion asociado')}
+          <small style="color:var(--suave)"> ${mb}${mb && fecha ? ' · ' : ''}${fecha}</small>
+          <div class="acciones">
+            <button class="secundario" data-accion="ver_video" data-ruta="${escapar(v.name)}">Ver</button>
+            <button class="secundario" data-accion="descargar_video" data-ruta="${escapar(v.name)}">Descargar</button>
+            <button class="secundario" data-accion="borrar_video" data-ruta="${escapar(v.name)}">Eliminar</button>
+          </div>
+          <div class="visor"></div></div>`;
+      });
+      return `<div class="tarjeta">
+        <h3>Biblioteca de vídeos</h3>
+        <label for="archivo-video">Subir vídeo (el nombre debe ser G-###.mp4, por ejemplo G-008.mp4)</label>
+        <input id="archivo-video" type="file" accept="video/mp4" multiple>
+        <div class="acciones"><button class="principal" data-accion="subir_videos">Subir a la biblioteca</button></div>
+        ${items.length ? items.join('') : '<p class="vacio">Todavía no hay vídeos.</p>'}
+      </div>`;
+    }
+
     function pintar() {
-      const partes = [htmlPeticion()].concat(GRUPOS.map((gr) => {
+      const partes = [htmlPeticion(), htmlBiblioteca()].concat(GRUPOS.map((gr) => {
         const items = guiones.filter((g) => gr.estados.includes(g.estado));
         if (!items.length && gr.titulo !== 'Por aprobar') return '';
         const cuerpo = items.length ? items.map(htmlTarjeta).join('') : '<p class="vacio">Nada pendiente.</p>';
@@ -251,6 +276,51 @@
         if (data && data.signedUrl) v.src = data.signedUrl;
         else v.insertAdjacentHTML('afterend', '<p class="vacio">No se pudo cargar el vídeo.</p>');
       }
+    }
+
+    async function cargarBiblioteca() {
+      const { data } = await sb.storage.from(BUCKET_VIDEOS)
+        .list('', { limit: 200, sortBy: { column: 'created_at', order: 'desc' } });
+      videosLib = (data || []).filter((o) => /\.mp4$/i.test(o.name));
+    }
+
+    async function accionBiblioteca(accion, boton) {
+      const ruta = boton.dataset.ruta;
+      if (accion === 'subir_videos') {
+        const archivos = [...($('archivo-video').files || [])];
+        if (!archivos.length) { avisar('Elige primero uno o más vídeos.'); return; }
+        for (const f of archivos) {
+          const m = f.name.match(/^(G-\d{3})\.mp4$/i);
+          if (!m) { avisar(`"${f.name}" no se sube: el nombre debe ser G-###.mp4 (por ejemplo G-008.mp4).`); return; }
+          if (f.size > 50 * 1048576) { avisar(`"${f.name}" pesa más de 50 MB.`); return; }
+          const cod = m[1].toUpperCase();
+          const { error } = await sb.storage.from(BUCKET_VIDEOS)
+            .upload(cod + '.mp4', f, { upsert: true, contentType: 'video/mp4' });
+          if (error) { avisar(`No se pudo subir ${f.name}: ${error.message}`); return; }
+          const g = guiones.find((x) => x.codigo === cod);
+          // Un vídeo nuevo de un guion aprobado pasa a "Revisar vídeo".
+          if (g && ['aprobado_guion', 'video_subido'].includes(g.estado)) await actualizar(g.id, { estado: 'pendiente_revision' });
+        }
+        avisar('');
+        await cargarBiblioteca();
+      } else if (accion === 'ver_video') {
+        const { data } = await sb.storage.from(BUCKET_VIDEOS).createSignedUrl(ruta, 3600);
+        if (!data) { avisar('No se pudo abrir el vídeo.'); return; }
+        boton.closest('.pub').querySelector('.visor').innerHTML =
+          `<video class="reproductor" controls playsinline src="${escapar(data.signedUrl)}"></video>`;
+        return;
+      } else if (accion === 'descargar_video') {
+        const url = await signedUrlDescarga(ruta.replace(/\.mp4$/i, ''));
+        if (url) window.open(url, '_blank');
+        return;
+      } else if (accion === 'borrar_video') {
+        if (!confirm(`¿Seguro que quieres eliminar el vídeo ${ruta} de la biblioteca?`)) return;
+        const { data, error } = await sb.storage.from(BUCKET_VIDEOS).remove([ruta]);
+        if (error || !data || !data.length) { avisar('No se pudo eliminar el vídeo.'); return; }
+        avisar('');
+        await cargarBiblioteca();
+      }
+      pintar();
     }
 
     async function recargarPublicaciones() {
@@ -293,6 +363,7 @@
       guiones = data || [];
       await cargarPendientes();
       await recargarPublicaciones();
+      await cargarBiblioteca();
       pintar();
     }
 
@@ -317,6 +388,11 @@
     $('contenido').addEventListener('click', async (ev) => {
       const boton = ev.target.closest('button[data-accion]');
       if (!boton) return;
+      if (['subir_videos', 'ver_video', 'descargar_video', 'borrar_video'].includes(boton.dataset.accion)) {
+        boton.disabled = true;
+        try { await accionBiblioteca(boton.dataset.accion, boton); } finally { boton.disabled = false; }
+        return;
+      }
       if (boton.dataset.accion === 'pedir') {
         boton.disabled = true;
         try { await pedirGuiones(); } finally { boton.disabled = false; }

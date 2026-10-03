@@ -58,6 +58,10 @@ hacen las demás fases.
      vídeos anteriores del proyecto), nunca "estilo realista". Si el prompt del
      panel dice "Estilo realista", sustituirlo por "animación 3D estilo Pixar,
      personajes 3D estilizados" antes de pegar.
+  2b. 3D reforzado: el prompt debe EMPEZAR con "ESTILO OBLIGATORIO: película de animación
+     3D de dibujos animados (estilo Pixar)…" y terminar con un recordatorio de estilo.
+     Si el vídeo sale realista, mirar primero las imágenes de referencia: las fotos
+     reales de escenarios tiran del resultado hacia el realismo (G-008, 2026-10-03).
   3. Una sola boca a la vez: el prompt debe decir quién habla en cada línea y que
      el otro tiene la boca cerrada escuchando (en G-001 los dos abrían la boca a
      la vez al hablar). Comprobarlo antes de pegar.
