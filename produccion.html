@@ -283,7 +283,7 @@
     }
 
     function pintar() {
-      const partes = [htmlPeticion(), htmlBiblioteca(), htmlCalendario()].concat(GRUPOS.map((gr) => {
+      const partes = [htmlCalendario(), htmlPeticion(), htmlBiblioteca()].concat(GRUPOS.map((gr) => {
         const items = guiones.filter((g) => gr.estados.includes(g.estado));
         if (!items.length && gr.titulo !== 'Por aprobar') return '';
         const cuerpo = items.length ? items.map(htmlTarjeta).join('') : '<p class="vacio">Nada pendiente.</p>';
