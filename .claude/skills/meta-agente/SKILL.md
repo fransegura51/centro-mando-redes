@@ -53,6 +53,33 @@ subir el vídeo editado desde Meta Business Suite y dejarla programada o publica
    del guion, `update guiones set estado='publicado' where id='<guion_id>';`.
 7. Anotar en `registros/` una línea: fecha, guion, red, resultado, motivo si hubo parada.
 
+## Estado real y reglas aprendidas (2026-10-04)
+
+- **Destino:** el Instagram es @pepafamily8. En Facebook la audiencia (2.516 seguidores)
+  está en el PERFIL "Pepa Fami" (modo profesional), no en una Página. La Página
+  "Pepa family" (asset_id=1376816558850936) se creó solo para desbloquear Business
+  Suite y tiene 0 seguidores: sirve para publicar reel en Instagram + Página, pero NO
+  llega a la audiencia de Facebook.
+- **Reel en Instagram + Página:** `business.facebook.com/latest/reels_composer?asset_id=1376816558850936`.
+  Capturar el input de fichero parcheando `HTMLInputElement.prototype.click` (el selector
+  nativo no se puede manejar), `file_upload` con el fichero de
+  `...\centro-mando-redes\videos\editados\` (las carpetas fuera del proyecto, como
+  "Vídeos cloud", NO se pueden subir), escribir el texto en el cuadro "Escribe el texto…"
+  con `document.execCommand('insertText')` comprobando que la longitud coincide, avanzar
+  con Siguiente dos veces y pulsar Compartir una sola vez (si no sale "Se está procesando
+  el reel", el clic no se registró: comprobar antes de repetir para no duplicar).
+- **Perfil de Facebook:** el publicador de reels del perfil (`facebook.com/reels/create`)
+  se queda en "Publicando" con la subida automática; no insistir. La vía buena es activar
+  en Centro de cuentas > Experiencias conectadas > Compartir contenido entre perfiles
+  (desde pepafamily8 hacia Pepa Fami) los interruptores "Tu historia de Instagram" y
+  "Tus publicaciones de Instagram". Meta pide la contraseña de Instagram para
+  guardarlo: la escribe el usuario, nunca el agente.
+- **Cada vídeo también como HISTORIA (regla del usuario, 2026-10-04):** tras publicar el
+  reel, crear además una historia con el mismo vídeo (Business Suite > Crear historia,
+  Instagram y la Página; y con "Tu historia de Instagram" activado se replica en el perfil
+  de Facebook). Misma regla de una sola pulsación y comprobar que se registró.
+- **Contenido de IA:** el texto lleva siempre "Vídeo creado con inteligencia artificial."
+
 ## Cuando se desbloquee la API de Meta
 
 Registrar la cuenta de desarrollador, guardar los secretos META_* en Supabase, sacar

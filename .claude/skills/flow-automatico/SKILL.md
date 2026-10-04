@@ -62,6 +62,9 @@ hacen las demás fases.
      3D de dibujos animados (estilo Pixar)…" y terminar con un recordatorio de estilo.
      Si el vídeo sale realista, mirar primero las imágenes de referencia: las fotos
      reales de escenarios tiran del resultado hacia el realismo (G-008, 2026-10-03).
+  2c. Personajes consistentes: el prompt debe llevar el bloque "ASPECTO FIJO DE LOS
+     PERSONAJES" (ropa y altura de Paco y Jennifer) de la skill estudio-contenido-redes.
+     Si no está, añadirlo antes de pegar. Flow cambiaba ropa y tamaño sin él.
   3. Una sola boca a la vez: el prompt debe decir quién habla en cada línea y que
      el otro tiene la boca cerrada escuchando (en G-001 los dos abrían la boca a
      la vez al hablar). Comprobarlo antes de pegar.
@@ -123,6 +126,16 @@ con 1 guion mientras el usuario mira. Ajustar `flow-mapa.md`.
 5. Actualizar el estado del guion según la fase 1 (por ejemplo `video_subido`)
    solo con la acción que ofrezca el panel; si no existe, avisar.
 6. Anotar los créditos después y completar el registro.
+
+## Dónde guardar los vídeos (regla del usuario, 2026-10-03)
+
+Además de `videos\entrada\G-###.mp4`, dejar SIEMPRE una copia en
+`C:\Users\Usuario\Documents\Vídeos cloud` (carpeta fijada en el Acceso rápido del
+Explorador), y subirlo a la Biblioteca de vídeos del panel (subida con el cuadro de
+archivo del panel y la herramienta de subida del navegador). Decir al usuario la ruta
+exacta y abrirle el Explorador con el fichero seleccionado. El usuario a veces mueve los
+vídeos por su cuenta (p. ej. a `Escritorio\Family App PEPA\videos terminados pepa`):
+buscar ahí antes de decir que falta.
 
 ## Registro de gasto (para medir el consumo real)
 

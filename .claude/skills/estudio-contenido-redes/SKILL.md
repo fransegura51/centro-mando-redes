@@ -155,6 +155,17 @@ que el usuario lo pida expresamente.
   indica quién habla y que el otro personaje permanece con la boca cerrada,
   escuchando, hasta su turno ("mientras PACO habla, JENNIFER tiene la boca cerrada
   y lo mira"). Nunca diálogos simultáneos ni solapados. Un clip, pocas líneas.
+- **Personajes consistentes (2026-10-04, Flow les cambiaba ropa y tamaño):** justo
+  después del bloque "ESTILO OBLIGATORIO" va SIEMPRE este texto fijo: "ASPECTO FIJO DE LOS
+  PERSONAJES (idéntico en todo el vídeo y a las imágenes de referencia): PACO, hombre adulto
+  calvo, cara redonda, cejas gruesas, más alto y corpulento que Jennifer, camisa azul marino
+  de botones, pantalón chino caqui, zapatos marrones. JENNIFER, mujer adulta, pelo largo
+  castaño ondulado, más baja que Paco (le llega a la barbilla), camiseta roja de manga corta,
+  vaqueros azules, zapatillas blancas. Misma cara, pelo, ropa y estatura relativa en todos
+  los planos; solo cambia una prenda si la escena la pide expresamente." Para DAVID y ÁLVARO
+  definir antes su ropa y estatura fijas y subir su referencia a Flow. Usar SIEMPRE las
+  referencias PACO y JENNIFER de Caracteres. Si una escena pide otra ropa (pijama, abrigo),
+  nombrarla en el prompt y mantener colores y cara.
 - **3D reforzado (2026-10-03, el vídeo de G-008 salió sin ser 3D):** el prompt EMPIEZA
   con "ESTILO OBLIGATORIO: película de animación 3D de dibujos animados (estilo Pixar),
   personajes 3D estilizados con aspecto de muñeco animado… NO es acción real, NO es
