@@ -66,6 +66,34 @@
     video.reproductor { width: 100%; max-height: 70vh; background: #000; border-radius: 8px; margin-top: 8px; }
     .pub { font-size: 0.85rem; margin-top: 4px; }
     .pub .error { color: var(--error); }
+    .leyenda { font-size: 0.9rem; margin-bottom: 12px; line-height: 1.8; }
+    details.carpeta { margin: 14px 0; border-radius: 14px; padding: 4px 12px 12px; border: 3px solid; }
+    details.carpeta > summary { display: flex; align-items: center; gap: 10px; list-style: none; cursor: pointer;
+      padding: 12px 0; color: var(--texto); font-weight: 700; font-size: 1.2rem; }
+    details.carpeta > summary::-webkit-details-marker { display: none; }
+    .carpeta-icono { font-size: 1.6rem; }
+    .carpeta-nombre { flex: 1; }
+    .carpeta-num { background: #fff; border-radius: 999px; padding: 2px 14px; font-size: 1.1rem; }
+    .carpeta-ayuda { font-size: 0.85rem; color: var(--suave); margin: 0 0 10px; }
+    details.carpeta.amarillo { background: #fef9c3; border-color: #eab308; }
+    details.carpeta.verde { background: #dcfce7; border-color: #22c55e; }
+    details.carpeta.rojo { background: #fee2e2; border-color: #ef4444; }
+    details.carpeta.gris { background: #f3f4f6; border-color: #9ca3af; }
+    .tarjeta.video { border-left-width: 8px; }
+    .tarjeta.video h3 { font-size: 1.15rem; }
+    .tarjeta.video.amarillo { border-left-color: #eab308; }
+    .tarjeta.video.verde { border-left-color: #22c55e; }
+    .tarjeta.video.rojo { border-left-color: #ef4444; }
+    .tarjeta.video.gris { border-left-color: #9ca3af; }
+    .chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0; }
+    .chip { font-size: 0.85rem; padding: 4px 10px; border-radius: 999px; background: #e5e7eb; }
+    .chip.verde { background: #bbf7d0; color: #14532d; }
+    .chip.amarillo { background: #fde68a; color: #713f12; }
+    .chip.rojo { background: #fecaca; color: #7f1d1d; }
+    .estado-video { font-size: 0.9rem; color: var(--suave); }
+    .aviso-manual { font-size: 0.95rem; font-weight: 600; background: #fde68a; color: #713f12;
+      border-radius: 8px; padding: 8px 10px; }
+    details.subida { background: #fff; border: 1px dashed var(--borde); border-radius: 10px; padding: 8px 12px; }
   </style>
 </head>
 <body>
@@ -248,31 +276,86 @@
       </div>`;
     }
 
+    // ---- Vídeos: una tarjeta por vídeo, con su color y las cuatro redes a la vista ----
+    const ORDEN_REDES = ['youtube', 'instagram', 'facebook', 'tiktok'];
+    const LAS_SUBES_TU = ['facebook', 'tiktok'];
+
+    function nombresRedes(lista) {
+      const n = lista.map((r) => NOMBRE_PLAT[r] || r);
+      return n.length > 1 ? n.slice(0, -1).join(', ') + ' y ' + n[n.length - 1] : n.join('');
+    }
+
+    function estadoVideo(g) {
+      const mias = publicaciones.filter((p) => p.guion_id === g.id);
+      const redes = ORDEN_REDES.map((r) => {
+        const p = mias.filter((x) => x.plataforma === r);
+        let e = 'gris';
+        if (p.some((x) => x.estado === 'publicado')) e = 'verde';
+        else if (p.some((x) => x.estado === 'error')) e = 'rojo';
+        else if (p.length) e = 'amarillo';
+        return [r, e];
+      });
+      const faltan = redes.filter(([, e]) => e !== 'verde').map(([r]) => r);
+      const faltanAuto = faltan.filter((r) => !LAS_SUBES_TU.includes(r));
+      const faltanTu = faltan.filter((r) => LAS_SUBES_TU.includes(r));
+      let color = 'amarillo';
+      let texto;
+      if (!faltan.length) { color = 'verde'; texto = 'Publicado en las 4 redes'; }
+      else if (redes.some(([, e]) => e === 'rojo')) { color = 'rojo'; texto = 'Hay un error al publicar: míralo abajo'; }
+      else if (!mias.length) texto = 'Listo para publicar. Elige la fecha en "Fechas y botones"';
+      else if (faltanAuto.length) texto = `Pendiente en ${nombresRedes(faltanAuto)} (lo hace Bartolo)`;
+      else texto = 'Publicado en YouTube e Instagram';
+      const aviso = faltan.length && faltanTu.length ? `Te falta publicar tú a mano en: ${nombresRedes(faltanTu)}` : '';
+      return { color, texto, aviso, redes };
+    }
+
     function htmlBiblioteca() {
-      const ordenados = [...videosLib].sort((a, b) => b.name.localeCompare(a.name)); // G-019 primero
-      const items = ordenados.map((v) => {
+      const ordenados = [...videosLib].sort((a, b) => b.name.localeCompare(a.name)); // el más nuevo primero
+      const carpetas = {
+        rojo: { icono: '🔴', nombre: 'Con error', ayuda: 'Algo falló al publicar', items: [] },
+        amarillo: { icono: '🟡', nombre: 'Listos / por publicar', ayuda: 'Preparados o a medias: faltan redes', items: [] },
+        verde: { icono: '🟢', nombre: 'Publicados en las 4 redes', ayuda: 'Terminados', items: [] },
+        gris: { icono: '⚪', nombre: 'Sin guion', ayuda: 'Vídeos sin guion asociado', items: [] }
+      };
+      ordenados.forEach((v) => {
         const cod = v.name.replace(/\.mp4$/i, '');
         const g = guiones.find((x) => x.codigo === cod);
-        const mb = v.metadata && v.metadata.size ? (v.metadata.size / 1048576).toFixed(1) + ' MB' : '';
-        const fecha = v.created_at ? fechaEs(v.created_at) : '';
-        return `<div class="pub"><strong>${escapar(cod)}</strong> · ${escapar(g ? g.titulo : 'sin guion asociado')}
-          <small style="color:var(--suave)"> ${mb}${mb && fecha ? ' · ' : ''}${fecha}</small>
-          <div class="acciones">
-            <button class="secundario" data-accion="ver_video" data-ruta="${escapar(v.name)}">Ver</button>
+        const botones = `<div class="pub"><div class="acciones">
+            <button class="secundario" data-accion="ver_video" data-ruta="${escapar(v.name)}">▶ Ver</button>
             <button class="secundario" data-accion="descargar_video" data-ruta="${escapar(v.name)}">Descargar</button>
             <button class="secundario" data-accion="borrar_video" data-ruta="${escapar(v.name)}">Eliminar</button>
-          </div>
-          <div class="visor"></div></div>`;
+          </div><div class="visor"></div></div>`;
+        if (!g) {
+          carpetas.gris.items.push(`<article class="tarjeta video gris"><h3><span class="codigo">${escapar(cod)}</span>Sin guion asociado</h3>${botones}</article>`);
+          return;
+        }
+        const e = estadoVideo(g);
+        const chips = e.redes.map(([r, c]) =>
+          `<span class="chip ${c}">${c === 'verde' ? '✔' : c === 'amarillo' ? '⏳' : c === 'rojo' ? '✖' : '○'} ${escapar(NOMBRE_PLAT[r] || r)}</span>`).join('');
+        carpetas[e.color].items.push(`<article class="tarjeta video ${e.color}" data-id="${g.id}">
+          <h3><span class="codigo">${escapar(g.codigo)}</span>${escapar(g.titulo)}</h3>
+          <div class="chips">${chips}</div>
+          ${e.aviso ? `<div class="aviso-manual">⚠ ${escapar(e.aviso)}</div>` : `<div class="estado-video">${escapar(e.texto)}</div>`}
+          ${botones}
+          <details><summary>📅 Fechas y botones de publicación</summary>${htmlSeguimiento(g)}</details>
+        </article>`);
       });
-      return `<div class="tarjeta">
-        <h3>Biblioteca de vídeos</h3>
-        <details><summary>Subir un vídeo nuevo</summary>
+      const bloques = ['rojo', 'amarillo', 'verde', 'gris'].filter((k) => carpetas[k].items.length).map((k) => {
+        const c = carpetas[k];
+        return `<details class="carpeta ${k}" ${k === 'verde' || k === 'gris' ? '' : 'open'}>
+          <summary><span class="carpeta-icono">${c.icono}</span><span class="carpeta-nombre">${c.nombre}</span>
+            <span class="carpeta-num">${c.items.length}</span></summary>
+          <div class="carpeta-ayuda">${c.ayuda}</div>
+          <div class="lista">${c.items.join('')}</div>
+        </details>`;
+      }).join('');
+      return `<div class="leyenda">🟢 Las 4 redes publicadas &nbsp; 🟡 Pendiente o a medias &nbsp; 🔴 Error</div>
+        ${bloques || '<p class="vacio">Todavía no hay vídeos.</p>'}
+        <details class="subida"><summary>➕ Subir un vídeo nuevo</summary>
           <label for="archivo-video">El nombre debe ser G-###.mp4, por ejemplo G-008.mp4</label>
           <input id="archivo-video" type="file" accept="video/mp4" multiple>
           <div class="acciones"><button class="principal" data-accion="subir_videos">Subir a la biblioteca</button></div>
-        </details>
-        ${items.length ? items.join('') : '<p class="vacio">Todavía no hay vídeos.</p>'}
-      </div>`;
+        </details>`;
     }
 
     // Calendario: publicaciones programadas (pendientes o a mano), ordenadas por fecha.
