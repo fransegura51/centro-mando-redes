@@ -254,8 +254,36 @@
       </div>`;
     }
 
+    // Calendario: publicaciones programadas (pendientes o a mano), ordenadas por fecha.
+    function aLocalInput(iso) {
+      const d = new Date(iso);
+      const p = (n) => String(n).padStart(2, '0');
+      return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`;
+    }
+
+    function htmlCalendario() {
+      const abiertas = publicaciones
+        .filter((p) => ['pendiente', 'manual', 'error'].includes(p.estado))
+        .sort((a, b) => new Date(a.programado_para) - new Date(b.programado_para));
+      const filas = abiertas.map((p) => {
+        const g = guiones.find((x) => x.id === p.guion_id);
+        const dia = new Date(p.programado_para).toLocaleDateString('es-ES',
+          { timeZone: 'Europe/Madrid', weekday: 'short', day: 'numeric', month: 'short' });
+        const quien = p.plataforma === 'youtube' ? 'automático' : (p.plataforma === 'instagram' ? 'lo programa Bartolo' : 'lo subes tú');
+        return `<div class="pub"><strong>${escapar(dia)}</strong> · ${escapar(g ? g.codigo + ' ' + g.titulo : '')}
+          <div>${escapar(NOMBRE_PLAT[p.plataforma] || p.plataforma)} <small style="color:var(--suave)">(${quien}, ${NOMBRE_PUB[p.estado] || escapar(p.estado)})</small></div>
+          <input type="datetime-local" data-hora="${p.id}" value="${aLocalInput(p.programado_para)}">
+          <div class="acciones"><button class="secundario" data-accion="cambiar_hora" data-pub="${p.id}">Guardar fecha y hora</button></div></div>`;
+      });
+      return `<div class="tarjeta">
+        <h3>Calendario de publicaciones</h3>
+        <p class="vacio" style="margin:4px 0 8px">Cambia aquí cuándo quieres que salga cada vídeo. YouTube sale solo a esa hora; Bartolo programa Instagram en Meta con esa fecha; Facebook y TikTok te avisan para subirlos tú.</p>
+        ${filas.length ? filas.join('') : '<p class="vacio">No hay nada programado. Programa un vídeo desde "Revisar vídeo".</p>'}
+      </div>`;
+    }
+
     function pintar() {
-      const partes = [htmlPeticion(), htmlBiblioteca()].concat(GRUPOS.map((gr) => {
+      const partes = [htmlPeticion(), htmlBiblioteca(), htmlCalendario()].concat(GRUPOS.map((gr) => {
         const items = guiones.filter((g) => gr.estados.includes(g.estado));
         if (!items.length && gr.titulo !== 'Por aprobar') return '';
         const cuerpo = items.length ? items.map(htmlTarjeta).join('') : '<p class="vacio">Nada pendiente.</p>';
@@ -391,6 +419,20 @@
       if (['subir_videos', 'ver_video', 'descargar_video', 'borrar_video'].includes(boton.dataset.accion)) {
         boton.disabled = true;
         try { await accionBiblioteca(boton.dataset.accion, boton); } finally { boton.disabled = false; }
+        return;
+      }
+      if (boton.dataset.accion === 'cambiar_hora') {
+        boton.disabled = true;
+        try {
+          const campo = document.querySelector(`[data-hora="${boton.dataset.pub}"]`);
+          const nueva = campo && campo.value ? new Date(campo.value) : null;
+          if (!nueva || isNaN(nueva.getTime())) { avisar('Elige una fecha y hora válidas.'); return; }
+          const { error } = await sb.from('publicaciones').update({ programado_para: nueva.toISOString() }).eq('id', boton.dataset.pub);
+          if (error) { avisar('No se pudo cambiar la fecha: ' + error.message); return; }
+          avisar('');
+          await recargarPublicaciones();
+          pintar();
+        } finally { boton.disabled = false; }
         return;
       }
       if (boton.dataset.accion === 'pedir') {

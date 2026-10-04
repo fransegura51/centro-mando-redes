@@ -80,6 +80,27 @@ subir el vídeo editado desde Meta Business Suite y dejarla programada o publica
   de Facebook). Misma regla de una sola pulsación y comprobar que se registró.
 - **Contenido de IA:** el texto lleva siempre "Vídeo creado con inteligencia artificial."
 
+## Calendario del panel (2026-10-04)
+
+El usuario programa en el panel (tarjeta "Calendario de publicaciones") la fecha y hora de
+cada vídeo. Reglas de Bartolo: YouTube lo publica solo el cron `publicar` a esa hora. Para
+Instagram/Página: al ejecutar el agente, leer `publicaciones` (estado `manual`,
+plataforma `instagram`) y en Business Suite usar **"Programar"** con la fecha de
+`programado_para` (hora de España) en vez de "Compartir", así Meta lo publica sola y no hace
+falta una sesión abierta a esa hora. Si la fecha ya pasó, publicar ya. Facebook y TikTok los
+sube el usuario a la hora indicada.
+
+## Alarma para Facebook y TikTok (regla del usuario, 2026-10-04)
+
+Cada vez que el usuario diga "publica G-0XX mañana a las 20:00 en YouTube e Instagram",
+además de programar YouTube (calendario del panel / cron) e Instagram (Programar en
+Business Suite), Bartolo crea un evento en el **Google Calendar** del usuario a esa misma
+hora, de unos 15 minutos, titulado "Publicar G-0XX en Facebook y TikTok", con un
+recordatorio/notificación en el momento exacto, y en la descripción: el texto listo para
+copiar (de `TEXTOS TikTok.txt`) y la ruta del vídeo en `Documentos\Vídeos cloud`. Es el único
+aviso que no depende de que haya una sesión de Claude abierta. Confirmar al usuario día y hora
+del evento. Usar el conector de Google Calendar; no tocar otros eventos.
+
 ## Cuando se desbloquee la API de Meta
 
 Registrar la cuenta de desarrollador, guardar los secretos META_* en Supabase, sacar
