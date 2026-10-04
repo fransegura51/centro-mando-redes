@@ -157,25 +157,39 @@
     }
 
     function htmlSeguimiento(g) {
-      const mias = publicaciones.filter((p) => p.guion_id === g.id);
-      if (!mias.length) return '';
+      const mias = publicaciones.filter((p) => p.guion_id === g.id).sort((a, b) => new Date(a.programado_para) - new Date(b.programado_para));
+      const tieneVideo = videosLib.some((v) => v.name === g.codigo + '.mp4');
+      if (!mias.length && !tieneVideo) return '';
       const lineas = mias.map((p) => {
+        const abierta = ['pendiente', 'manual', 'error'].includes(p.estado);
         const estado = NOMBRE_PUB[p.estado] || escapar(p.estado);
-        const cuando = p.estado === 'pendiente' || p.estado === 'manual' ? ` · ${fechaEs(p.programado_para)}` : '';
+        const cuando = abierta ? '' : (p.publicado_en ? ` · ${fechaEs(p.publicado_en)}` : '');
         const enlace = p.url_publicada ? ` · <a href="${escapar(p.url_publicada)}" target="_blank" rel="noopener">ver</a>` : '';
         const err = p.estado === 'error' && p.error_texto ? `<div class="error">${escapar(p.error_texto)}</div>` : '';
+        const red = NOMBRE_PLAT[p.plataforma] || p.plataforma;
         const botones = [];
-        if (p.estado === 'error') botones.push(`<button class="secundario" data-accion="reintentar" data-pub="${p.id}">Reintentar</button>`);
-        if (p.estado === 'manual') {
-          const red = NOMBRE_PLAT[p.plataforma] || p.plataforma;
-          botones.push(`<button class="secundario" data-accion="manual_descargar">Descargar vídeo</button>`);
-          botones.push(`<button class="secundario" data-accion="manual_copiar">Copiar texto</button>`);
-          botones.push(`<button class="secundario" data-accion="manual_hecho" data-pub="${p.id}">Ya lo subí a ${escapar(red)}</button>`);
+        if (abierta) {
+          botones.push(`<button class="secundario" data-accion="cambiar_hora" data-pub="${p.id}">Guardar fecha y hora</button>`);
+          if (p.estado === 'error') botones.push(`<button class="secundario" data-accion="reintentar" data-pub="${p.id}">Reintentar</button>`);
+          if (['manual', 'pendiente'].includes(p.estado) && MANUALES.includes(p.plataforma)) {
+            botones.push(`<button class="secundario" data-accion="manual_descargar">Descargar vídeo</button>`);
+            botones.push(`<button class="secundario" data-accion="manual_copiar">Copiar texto</button>`);
+          }
+          botones.push(`<button class="principal" data-accion="manual_hecho" data-pub="${p.id}">Ya publicado en ${escapar(red)}</button>`);
         }
-        return `<div class="pub"><strong>${NOMBRE_PLAT[p.plataforma] || escapar(p.plataforma)}</strong>: ${estado}${cuando}${enlace}${err}
+        const fecha = abierta
+          ? `<input type="datetime-local" data-hora="${p.id}" value="${aLocalInput(p.programado_para)}">` : '';
+        return `<div class="pub"><strong>${escapar(red)}</strong>: ${estado}${cuando}${enlace}${err}${fecha}
           ${botones.length ? `<div class="acciones">${botones.join('')}</div>` : ''}</div>`;
       });
-      return `<div class="guion" style="margin-top:10px">${lineas.join('')}</div>`;
+      // Programar otra red para este mismo vídeo.
+      const usadas = mias.map((p) => p.plataforma);
+      const libres = PLATAFORMAS.filter(([k]) => !usadas.includes(k));
+      const nueva = libres.length ? `<div class="pub"><strong>Programar otra red</strong>
+          <select data-nueva-red>${libres.map(([k, n]) => `<option value="${k}">${escapar(n)}</option>`).join('')}</select>
+          <input type="datetime-local" data-nueva-hora value="${aLocalInput(new Date(Date.now() + 3600000).toISOString())}">
+          <div class="acciones"><button class="secundario" data-accion="programar_red">Programar</button></div></div>` : '';
+      return `<div class="guion" style="margin-top:10px"><strong>Calendario de este vídeo</strong>${lineas.join('')}${nueva}</div>`;
     }
 
     function htmlTarjeta(g) {
@@ -186,7 +200,7 @@
         extra = htmlRevision(g);
         acciones = `<button class="principal" data-accion="aprobar_video">Aprobar y programar</button>
           <button class="secundario" data-accion="rechazar">Rechazar</button>`;
-      } else if (g.estado === 'aprobado_publicar' || g.estado === 'publicado') {
+      } else if (!['borrador', 'rechazado', 'aprobado_guion'].includes(g.estado) || publicaciones.some((p) => p.guion_id === g.id)) {
         extra = htmlSeguimiento(g);
       }
       if (g.estado === 'borrador') {
@@ -424,7 +438,7 @@
       if (boton.dataset.accion === 'cambiar_hora') {
         boton.disabled = true;
         try {
-          const campo = document.querySelector(`[data-hora="${boton.dataset.pub}"]`);
+          const campo = boton.closest('.pub').querySelector('[data-hora]');
           const nueva = campo && campo.value ? new Date(campo.value) : null;
           if (!nueva || isNaN(nueva.getTime())) { avisar('Elige una fecha y hora válidas.'); return; }
           const { error } = await sb.from('publicaciones').update({ programado_para: nueva.toISOString() }).eq('id', boton.dataset.pub);
@@ -488,6 +502,19 @@
             avisar('No se pudo copiar automáticamente; abre "Texto de publicación" y cópialo a mano.');
           }
           return;
+        } else if (accion === 'programar_red') {
+          const red = tarjeta.querySelector('[data-nueva-red]').value;
+          const v = tarjeta.querySelector('[data-nueva-hora]').value;
+          const hora = new Date(v);
+          if (!v || isNaN(hora.getTime())) { avisar('Elige la fecha y la hora.'); return; }
+          const { error } = await sb.from('publicaciones').insert({
+            guion_id: id, plataforma: red, ruta_video: g.codigo + '.mp4',
+            programado_para: hora.toISOString(), estado: MANUALES.includes(red) ? 'manual' : 'pendiente',
+          });
+          if (error) { avisar('No se pudo programar: ' + error.message); return; }
+          // Para que el cron pueda publicarlo, el guion debe estar aprobado para publicar.
+          if (g.estado !== 'aprobado_publicar') await actualizar(id, { estado: 'aprobado_publicar' });
+          await recargarPublicaciones();
         } else if (accion === 'manual_hecho') {
           const { error } = await sb.from('publicaciones')
             .update({ estado: 'publicado', publicado_en: new Date().toISOString() }).eq('id', boton.dataset.pub);
