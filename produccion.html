@@ -56,6 +56,10 @@
       color: var(--aviso); font-size: 0.9rem; margin-bottom: 12px; }
     .vacio { color: var(--suave); font-style: italic; }
     #cargando { text-align: center; color: var(--suave); }
+    .pestanas { display: flex; gap: 6px; overflow-x: auto; margin-bottom: 14px; position: sticky; top: 0;
+      background: var(--fondo); padding: 6px 0; z-index: 5; }
+    .pestanas button { flex: 1 0 auto; font-size: 0.9rem; padding: 10px 12px; white-space: nowrap; }
+    .pestanas button.activa { background: var(--primario); border-color: var(--primario); color: #fff; }
     label.check { display: flex; align-items: center; gap: 8px; color: var(--texto);
       font-size: 0.95rem; margin: 6px 0; }
     label.check input { width: auto; }
@@ -245,7 +249,8 @@
     }
 
     function htmlBiblioteca() {
-      const items = videosLib.map((v) => {
+      const ordenados = [...videosLib].sort((a, b) => b.name.localeCompare(a.name)); // G-019 primero
+      const items = ordenados.map((v) => {
         const cod = v.name.replace(/\.mp4$/i, '');
         const g = guiones.find((x) => x.codigo === cod);
         const mb = v.metadata && v.metadata.size ? (v.metadata.size / 1048576).toFixed(1) + ' MB' : '';
@@ -261,9 +266,11 @@
       });
       return `<div class="tarjeta">
         <h3>Biblioteca de vídeos</h3>
-        <label for="archivo-video">Subir vídeo (el nombre debe ser G-###.mp4, por ejemplo G-008.mp4)</label>
-        <input id="archivo-video" type="file" accept="video/mp4" multiple>
-        <div class="acciones"><button class="principal" data-accion="subir_videos">Subir a la biblioteca</button></div>
+        <details><summary>Subir un vídeo nuevo</summary>
+          <label for="archivo-video">El nombre debe ser G-###.mp4, por ejemplo G-008.mp4</label>
+          <input id="archivo-video" type="file" accept="video/mp4" multiple>
+          <div class="acciones"><button class="principal" data-accion="subir_videos">Subir a la biblioteca</button></div>
+        </details>
         ${items.length ? items.join('') : '<p class="vacio">Todavía no hay vídeos.</p>'}
       </div>`;
     }
@@ -296,18 +303,39 @@
       </div>`;
     }
 
+    // Vistas: cada cosa en su pestaña para que la pantalla no sea una lista interminable.
+    let vista = 'videos';
+    try { vista = localStorage.getItem('cmr_vista') || 'videos'; } catch (e) { /* sin almacenamiento */ }
+
+    function htmlPestanas() {
+      const nCal = publicaciones.filter((p) => ['pendiente', 'manual', 'error'].includes(p.estado)).length;
+      const nGui = guiones.filter((g) => ['borrador', 'aprobado_guion', 'pendiente_revision'].includes(g.estado)).length;
+      const tabs = [
+        ['videos', `Vídeos (${videosLib.length})`],
+        ['calendario', `Calendario${nCal ? ` (${nCal})` : ''}`],
+        ['guiones', `Guiones${nGui ? ` (${nGui})` : ''}`],
+        ['pedir', 'Pedir guiones'],
+      ];
+      return `<div class="pestanas">${tabs.map(([k, n]) =>
+        `<button class="${k === vista ? 'activa' : ''}" data-accion="vista" data-vista="${k}">${n}</button>`).join('')}</div>`;
+    }
+
     function pintar() {
-      const partes = [htmlCalendario(), htmlPeticion(), htmlBiblioteca()].concat(GRUPOS.map((gr) => {
-        const items = guiones.filter((g) => gr.estados.includes(g.estado));
-        if (!items.length && gr.titulo !== 'Por aprobar') return '';
-        const cuerpo = items.length ? items.map(htmlTarjeta).join('') : '<p class="vacio">Nada pendiente.</p>';
-        return `<div class="titulo-seccion"><h2>${gr.titulo}</h2><small>${items.length}</small></div>
-          <div class="lista">${cuerpo}</div>`;
-      }));
+      let cuerpo;
+      if (vista === 'calendario') cuerpo = htmlCalendario();
+      else if (vista === 'pedir') cuerpo = htmlPeticion();
+      else if (vista === 'guiones') {
+        cuerpo = GRUPOS.map((gr) => {
+          const items = guiones.filter((g) => gr.estados.includes(g.estado));
+          if (!items.length) return '';
+          return `<div class="titulo-seccion"><h2>${gr.titulo}</h2><small>${items.length}</small></div>
+            <div class="lista">${items.map(htmlTarjeta).join('')}</div>`;
+        }).join('') || '<p class="vacio">No hay guiones.</p>';
+      } else cuerpo = htmlBiblioteca();
       const campo = $('num-guiones');
       const valor = campo ? campo.value : '';
-      $('contenido').innerHTML = partes.join('');
-      if (valor) $('num-guiones').value = valor;
+      $('contenido').innerHTML = htmlPestanas() + cuerpo;
+      if (valor && $('num-guiones')) $('num-guiones').value = valor;
       cargarVideos();
     }
 
@@ -433,6 +461,12 @@
       if (['subir_videos', 'ver_video', 'descargar_video', 'borrar_video'].includes(boton.dataset.accion)) {
         boton.disabled = true;
         try { await accionBiblioteca(boton.dataset.accion, boton); } finally { boton.disabled = false; }
+        return;
+      }
+      if (boton.dataset.accion === 'vista') {
+        vista = boton.dataset.vista;
+        try { localStorage.setItem('cmr_vista', vista); } catch (e) { /* sin almacenamiento */ }
+        pintar();
         return;
       }
       if (boton.dataset.accion === 'cambiar_hora') {
