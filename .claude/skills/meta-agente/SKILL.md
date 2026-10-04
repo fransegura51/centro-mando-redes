@@ -31,6 +31,14 @@ subir el vídeo editado desde Meta Business Suite y dejarla programada o publica
    de "Publicar/Programar", mostrar al usuario qué se va a subir (red, hora, texto) y
    esperar su "adelante" la primera vez que se use este agente.
 
+8. **NUNCA fecha ni hora por defecto, NUNCA publicar sin confirmación (regla del usuario,
+   2026-10-04).** Ninguna publicación (YouTube, Instagram, Facebook ni TikTok) se programa ni
+   se publica con una hora que yo elija, ni "ya", ni "dentro de una hora". Solo se publica
+   cuando el usuario me dé EXPRESAMENTE el día y la hora y la confirme; entonces se publica
+   en ese día y hora, ni antes. No insertar filas `publicaciones` en estado `pendiente` ni
+   mover `programado_para` a "ahora" sin esa orden (el cron `publicar` publica YouTube
+   cada 5 min todo lo `pendiente` con hora pasada). El panel exige elegir y confirmar la fecha.
+
 ## Procedimiento
 
 1. Leer con SQL (conector Supabase) las publicaciones pendientes:

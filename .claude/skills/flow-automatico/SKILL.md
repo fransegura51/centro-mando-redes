@@ -68,6 +68,14 @@ hacen las demás fases.
   3. Una sola boca a la vez: el prompt debe decir quién habla en cada línea y que
      el otro tiene la boca cerrada escuchando (en G-001 los dos abrían la boca a
      la vez al hablar). Comprobarlo antes de pegar.
+  3b. VOCES (regla del usuario, 2026-10-04): todos los prompts llevan "VOCES: usar
+     exclusivamente las voces ya asignadas a los personajes PACO y JENNIFER en Flow; no
+     inventar, cambiar ni mezclar voces; todo en español de España, sin acento inglés ni de
+     ningún otro idioma." (En la biblioteca de Flow la voz de JENNIFER es "achernar" y la de
+     PACO "charon".) Al añadir la referencia del personaje se queda su voz.
+  3c. POSICIONES FIJAS en guiones de varios clips: indicar en TODOS los clips en qué lado
+     de la imagen está cada personaje, desde dónde mira la cámara y que el decorado es el
+     mismo; comparar el último fotograma de un clip con el primero del siguiente antes de unir.
   4. Tras enviar, el asistente de Flow pide aprobar el coste (p. ej. 15 puntos):
      pulsar "Aprobar" solo una vez, nunca "Aprobar siempre".
   G-001 se generó sin estas dos reglas (diálogo inventado por Flow y "estilo

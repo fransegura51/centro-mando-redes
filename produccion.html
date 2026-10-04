@@ -179,12 +179,8 @@
       const redes = PLATAFORMAS.map(([k, n]) =>
         `<label class="check"><input type="checkbox" data-plataforma="${k}" checked> ${n}</label>`).join('');
       return `<video class="reproductor" data-ruta="${escapar(g.codigo)}.mp4" controls playsinline preload="metadata"></video>
-        <label>Cuándo publicar</label>
-        <select data-campo="cuando">
-          <option value="ya">Publicar ya</option>
-          <option value="fecha">Elegir fecha y hora</option>
-        </select>
-        <input type="datetime-local" data-campo="fecha" hidden>
+        <label>Fecha y hora de publicación (la eliges tú; no se publica nada sin ella)</label>
+        <input type="datetime-local" data-campo="fecha">
         <label>Dónde</label>${redes}`;
     }
 
@@ -219,7 +215,7 @@
       const libres = PLATAFORMAS.filter(([k]) => !usadas.includes(k));
       const nueva = libres.length ? `<div class="pub"><strong>Programar otra red</strong>
           <select data-nueva-red>${libres.map(([k, n]) => `<option value="${k}">${escapar(n)}</option>`).join('')}</select>
-          <input type="datetime-local" data-nueva-hora value="${aLocalInput(new Date(Date.now() + 3600000).toISOString())}">
+          <input type="datetime-local" data-nueva-hora>
           <div class="acciones"><button class="secundario" data-accion="programar_red">Programar</button></div></div>` : '';
       return `<div class="guion" style="margin-top:10px"><strong>Calendario de este vídeo</strong>${lineas.join('')}${nueva}</div>`;
     }
@@ -250,8 +246,18 @@
         ? `<details><summary>Fotogramas de referencia</summary><pre>${escapar(g.fotogramas_notas)}</pre></details>` : '';
       const motivo = g.estado === 'rechazado' && g.motivo_rechazo
         ? `<div class="motivo">Motivo: ${escapar(g.motivo_rechazo)}</div>` : '';
-      return `<article class="tarjeta" data-id="${g.id}">
+      const conRedes = ['pendiente_revision', 'video_subido', 'aprobado_publicar', 'publicado'].includes(g.estado)
+        || publicaciones.some((p) => p.guion_id === g.id);
+      const ev = estadoVideo(g);
+      const color = g.estado === 'rechazado' ? 'gris' : ev.color;
+      const redes = conRedes
+        ? `<div class="chips">${ev.redes.map(([r, c]) =>
+          `<span class="chip ${c}">${c === 'verde' ? '✔' : c === 'amarillo' ? '⏳' : c === 'rojo' ? '✖' : '○'} ${escapar(NOMBRE_PLAT[r] || r)}</span>`).join('')}</div>`
+          + (ev.aviso ? `<div class="aviso-manual">⚠ ${escapar(ev.aviso)}</div>` : '')
+        : '';
+      return `<article class="tarjeta video ${color}" data-id="${g.id}">
         <h3><span class="codigo">${escapar(g.codigo)}</span>${escapar(g.titulo)}</h3>
+        ${redes}
         <div class="personajes">${escapar((g.personajes || []).join(', '))}</div>
         <div class="guion">${escapar(g.guion)}</div>
         <details><summary>Prompt para Flow</summary><pre>${escapar(g.prompt_flow)}</pre></details>
@@ -408,12 +414,23 @@
       if (vista === 'calendario') cuerpo = htmlCalendario();
       else if (vista === 'pedir') cuerpo = htmlPeticion();
       else if (vista === 'guiones') {
-        cuerpo = GRUPOS.map((gr) => {
-          const items = guiones.filter((g) => gr.estados.includes(g.estado));
-          if (!items.length) return '';
-          return `<div class="titulo-seccion"><h2>${gr.titulo}</h2><small>${items.length}</small></div>
-            <div class="lista">${items.map(htmlTarjeta).join('')}</div>`;
-        }).join('') || '<p class="vacio">No hay guiones.</p>';
+        const carp = {
+          amarillo: { icono: '🟡', nombre: 'No publicados', ayuda: 'En preparación, pendientes o publicados solo en algunas redes', items: [] },
+          verde: { icono: '🟢', nombre: 'Publicados en las 4 redes', ayuda: 'Terminados', items: [] },
+          gris: { icono: '⚪', nombre: 'Rechazados', ayuda: 'Descartados', items: [] },
+        };
+        [...guiones].sort((a, b) => b.codigo.localeCompare(a.codigo)).forEach((g) => {
+          const k = g.estado === 'rechazado' ? 'gris' : (estadoVideo(g).color === 'verde' ? 'verde' : 'amarillo');
+          carp[k].items.push(htmlTarjeta(g));
+        });
+        cuerpo = '<div class="leyenda">🟢 Publicado en las 4 redes &nbsp; 🟡 No publicado o a medias</div>'
+          + (['amarillo', 'verde', 'gris'].filter((k) => carp[k].items.length).map((k) =>
+            `<details class="carpeta ${k}" ${k === 'amarillo' ? 'open' : ''}>
+              <summary><span class="carpeta-icono">${carp[k].icono}</span><span class="carpeta-nombre">${carp[k].nombre}</span>
+                <span class="carpeta-num">${carp[k].items.length}</span></summary>
+              <div class="carpeta-ayuda">${carp[k].ayuda}</div>
+              <div class="lista">${carp[k].items.join('')}</div>
+            </details>`).join('') || '<p class="vacio">No hay guiones.</p>');
       } else cuerpo = htmlBiblioteca();
       const campo = $('num-guiones');
       const valor = campo ? campo.value : '';
@@ -558,6 +575,7 @@
           const campo = boton.closest('.pub').querySelector('[data-hora]');
           const nueva = campo && campo.value ? new Date(campo.value) : null;
           if (!nueva || isNaN(nueva.getTime())) { avisar('Elige una fecha y hora válidas.'); return; }
+          if (!confirm(`¿Confirmas esta fecha y hora de publicación: ${fechaEs(nueva.toISOString())}?`)) return;
           const { error } = await sb.from('publicaciones').update({ programado_para: nueva.toISOString() }).eq('id', boton.dataset.pub);
           if (error) { avisar('No se pudo cambiar la fecha: ' + error.message); return; }
           avisar('');
@@ -585,16 +603,13 @@
           if (motivo === null) return;
           await actualizar(id, { estado: 'rechazado', motivo_rechazo: motivo.trim() || null });
         } else if (accion === 'aprobar_video') {
-          const cuando = tarjeta.querySelector('[data-campo=cuando]').value;
-          let hora = new Date();
-          if (cuando === 'fecha') {
-            const v = tarjeta.querySelector('[data-campo=fecha]').value;
-            hora = new Date(v);
-            if (!v || isNaN(hora.getTime())) { avisar('Elige la fecha y la hora.'); return; }
-            if (hora.getTime() < Date.now() - 60000) { avisar('Esa fecha y hora ya han pasado.'); return; }
-          }
+          const v = tarjeta.querySelector('[data-campo=fecha]').value;
+          const hora = new Date(v);
+          if (!v || isNaN(hora.getTime())) { avisar('Elige tú la fecha y la hora de publicación. No se publica nada sin ella.'); return; }
+          if (hora.getTime() < Date.now() - 60000) { avisar('Esa fecha y hora ya han pasado.'); return; }
           const redes = [...tarjeta.querySelectorAll('[data-plataforma]:checked')].map((x) => x.dataset.plataforma);
           if (!redes.length) { avisar('Elige al menos una red.'); return; }
+          if (!confirm(`¿Confirmas publicar ${g.codigo} en ${redes.map((r) => NOMBRE_PLAT[r]).join(', ')} el ${fechaEs(hora.toISOString())}?`)) return;
           const filas = redes.map((r) => ({
             guion_id: id, plataforma: r, ruta_video: g.codigo + '.mp4',
             programado_para: hora.toISOString(), estado: MANUALES.includes(r) ? 'manual' : 'pendiente',
@@ -623,7 +638,8 @@
           const red = tarjeta.querySelector('[data-nueva-red]').value;
           const v = tarjeta.querySelector('[data-nueva-hora]').value;
           const hora = new Date(v);
-          if (!v || isNaN(hora.getTime())) { avisar('Elige la fecha y la hora.'); return; }
+          if (!v || isNaN(hora.getTime())) { avisar('Elige tú la fecha y la hora. No se publica nada sin ella.'); return; }
+          if (!confirm(`¿Confirmas publicar ${g.codigo} en ${NOMBRE_PLAT[red] || red} el ${fechaEs(hora.toISOString())}?`)) return;
           const { error } = await sb.from('publicaciones').insert({
             guion_id: id, plataforma: red, ruta_video: g.codigo + '.mp4',
             programado_para: hora.toISOString(), estado: MANUALES.includes(red) ? 'manual' : 'pendiente',
