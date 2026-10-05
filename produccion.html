@@ -432,13 +432,18 @@
     let vista = 'videos';
     try { vista = localStorage.getItem('cmr_vista') || 'videos'; } catch (e) { /* sin almacenamiento */ }
 
+    // Un guion está "creado" cuando su vídeo ya está subido al panel; si no, "sin crear".
+    function tieneVideo(g) { return videosLib.some((o) => o.name === `${g.codigo}.mp4`); }
+
     function htmlPestanas() {
       const nCal = publicaciones.filter((p) => ['pendiente', 'manual', 'error'].includes(p.estado)).length;
-      const nGui = guiones.filter((g) => ['borrador', 'aprobado_guion', 'pendiente_revision'].includes(g.estado)).length;
+      const nCre = guiones.filter((g) => tieneVideo(g) && g.estado !== 'rechazado').length;
+      const nSin = guiones.filter((g) => !tieneVideo(g) && g.estado !== 'rechazado').length;
       const tabs = [
         ['videos', `Vídeos (${videosLib.length})`],
         ['calendario', `Calendario${nCal ? ` (${nCal})` : ''}`],
-        ['guiones', `Guiones${nGui ? ` (${nGui})` : ''}`],
+        ['guiones', `Guiones creados (${nCre})`],
+        ['sin_crear', `Guiones sin crear (${nSin})`],
         ['pedir', 'Pedir guiones'],
       ];
       return `<div class="pestanas">${tabs.map(([k, n]) =>
@@ -449,24 +454,26 @@
       let cuerpo;
       if (vista === 'calendario') cuerpo = htmlCalendario();
       else if (vista === 'pedir') cuerpo = htmlPeticion();
-      else if (vista === 'guiones') {
+      else if (vista === 'guiones' || vista === 'sin_crear') {
+        const sinCrear = vista === 'sin_crear';
         const carp = {
           amarillo: { icono: '🟡', nombre: 'No publicados', ayuda: 'En preparación, pendientes o publicados solo en algunas redes', items: [] },
           verde: { icono: '🟢', nombre: 'Publicados en las 4 redes', ayuda: 'Terminados', items: [] },
           gris: { icono: '⚪', nombre: 'Rechazados', ayuda: 'Descartados', items: [] },
         };
-        [...guiones].sort((a, b) => b.codigo.localeCompare(a.codigo)).forEach((g) => {
+        [...guiones].filter((g) => tieneVideo(g) !== sinCrear).sort((a, b) => b.codigo.localeCompare(a.codigo)).forEach((g) => {
           const k = g.estado === 'rechazado' ? 'gris' : (estadoVideo(g).color === 'verde' ? 'verde' : 'amarillo');
           carp[k].items.push(htmlTarjeta(g));
         });
-        cuerpo = '<div class="leyenda">🟢 Publicado en las 4 redes &nbsp; 🟡 No publicado o a medias</div>'
+        cuerpo = (sinCrear ? '<div class="leyenda">Guiones que aún no tienen vídeo. Cuando se suba el vídeo pasan solos a "Guiones creados".</div>'
+          : '<div class="leyenda">🟢 Publicado en las 4 redes &nbsp; 🟡 No publicado o a medias</div>')
           + (['amarillo', 'verde', 'gris'].filter((k) => carp[k].items.length).map((k) =>
             `<details class="carpeta ${k}" ${k === 'amarillo' ? 'open' : ''}>
               <summary><span class="carpeta-icono">${carp[k].icono}</span><span class="carpeta-nombre">${carp[k].nombre}</span>
                 <span class="carpeta-num">${carp[k].items.length}</span></summary>
               <div class="carpeta-ayuda">${carp[k].ayuda}</div>
               <div class="lista">${carp[k].items.join('')}</div>
-            </details>`).join('') || '<p class="vacio">No hay guiones.</p>');
+            </details>`).join('') || `<p class="vacio">${sinCrear ? 'No hay guiones sin crear.' : 'No hay guiones creados.'}</p>`);
       } else cuerpo = htmlBiblioteca();
       const campo = $('num-guiones');
       const valor = campo ? campo.value : '';
