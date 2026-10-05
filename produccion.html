@@ -93,6 +93,11 @@
     .estado-video { font-size: 0.9rem; color: var(--suave); }
     .aviso-manual { font-size: 0.95rem; font-weight: 600; background: #fde68a; color: #713f12;
       border-radius: 8px; padding: 8px 10px; }
+    .fila { background: #fff; border: 1px solid var(--borde); border-left: 8px solid #9ca3af; border-radius: 10px;
+      padding: 10px 12px; margin: 8px 0; }
+    .fila.amarillo { border-left-color: #eab308; }
+    .fila.verde { border-left-color: #22c55e; }
+    .fila.rojo { border-left-color: #ef4444; }
     details.subida { background: #fff; border: 1px dashed var(--borde); border-radius: 10px; padding: 8px 12px; }
   </style>
 </head>
@@ -372,24 +377,50 @@
     }
 
     function htmlCalendario() {
-      const abiertas = publicaciones
-        .filter((p) => ['pendiente', 'manual', 'error'].includes(p.estado))
-        .sort((a, b) => new Date(a.programado_para) - new Date(b.programado_para));
-      const filas = abiertas.map((p) => {
+      const carp = {
+        rojo: { icono: '🔴', nombre: 'Con error', ayuda: 'Algo falló al publicar: revisa y reintenta', items: [] },
+        amarillo: { icono: '🟡', nombre: 'Programadas / por publicar', ayuda: 'Cambia aquí la fecha y hora. Solo se publica lo que tú confirmas', items: [] },
+        verde: { icono: '🟢', nombre: 'Ya publicadas', ayuda: 'Terminadas', items: [] },
+      };
+      const orden = (a, b) => new Date(a.programado_para) - new Date(b.programado_para);
+      const fila = (p, color) => {
         const g = guiones.find((x) => x.id === p.guion_id);
-        const dia = new Date(p.programado_para).toLocaleDateString('es-ES',
-          { timeZone: 'Europe/Madrid', weekday: 'short', day: 'numeric', month: 'short' });
-        const quien = p.plataforma === 'youtube' ? 'automático' : (p.plataforma === 'instagram' ? 'lo programa Bartolo' : 'lo subes tú');
-        return `<div class="pub"><strong>${escapar(dia)}</strong> · ${escapar(g ? g.codigo + ' ' + g.titulo : '')}
-          <div>${escapar(NOMBRE_PLAT[p.plataforma] || p.plataforma)} <small style="color:var(--suave)">(${quien}, ${NOMBRE_PUB[p.estado] || escapar(p.estado)})</small></div>
-          <input type="datetime-local" data-hora="${p.id}" value="${aLocalInput(p.programado_para)}">
-          <div class="acciones"><button class="secundario" data-accion="cambiar_hora" data-pub="${p.id}">Guardar fecha y hora</button></div></div>`;
-      });
-      return `<div class="tarjeta">
-        <h3>Calendario de publicaciones</h3>
-        <p class="vacio" style="margin:4px 0 8px">Cambia aquí cuándo quieres que salga cada vídeo. YouTube sale solo a esa hora; Bartolo programa Instagram en Meta con esa fecha; Facebook y TikTok te avisan para subirlos tú.</p>
-        ${filas.length ? filas.join('') : '<p class="vacio">No hay nada programado. Programa un vídeo desde "Revisar vídeo".</p>'}
-      </div>`;
+        const cuando = color === 'verde' && p.publicado_en ? p.publicado_en : p.programado_para;
+        const dia = new Date(cuando).toLocaleString('es-ES',
+          { timeZone: 'Europe/Madrid', weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+        const red = NOMBRE_PLAT[p.plataforma] || p.plataforma;
+        const quien = p.plataforma === 'youtube' ? 'automático' : (p.plataforma === 'instagram' ? 'lo programa Bartolo' : 'lo subes tú a mano');
+        const abierta = color !== 'verde';
+        const enlace = p.url_publicada ? ` · <a href="${escapar(p.url_publicada)}" target="_blank" rel="noopener">ver</a>` : '';
+        const err = p.estado === 'error' && p.error_texto ? `<div class="error">${escapar(p.error_texto)}</div>` : '';
+        const botones = abierta
+          ? `<div class="acciones"><button class="secundario" data-accion="cambiar_hora" data-pub="${p.id}">Guardar fecha y hora</button>
+              <button class="principal" data-accion="manual_hecho" data-pub="${p.id}">Ya publicado en ${escapar(red)}</button>
+              <button class="secundario" data-accion="eliminar_pub" data-pub="${p.id}">Eliminar</button></div>`
+          : `<div class="acciones">${MANUALES.includes(p.plataforma) ? `<button class="secundario" data-accion="reabrir_pub" data-pub="${p.id}">Marcar como no publicado</button>` : ''}
+              <button class="secundario" data-accion="eliminar_pub" data-pub="${p.id}">Eliminar del calendario</button></div>`;
+        return `<div class="fila pub ${color}" data-id="${p.guion_id}">
+          <div><strong>${escapar(dia)}</strong> · ${escapar(g ? g.codigo + ' ' + g.titulo : '')}</div>
+          <div><span class="chip ${color}">${escapar(red)}</span> <small style="color:var(--suave)">${quien} · ${NOMBRE_PUB[p.estado] || escapar(p.estado)}${enlace}</small></div>
+          ${err}
+          ${abierta ? `<input type="datetime-local" data-hora="${p.id}" value="${aLocalInput(p.programado_para)}">` : ''}
+          ${botones}</div>`;
+      };
+      publicaciones.filter((p) => p.estado === 'error').sort(orden).forEach((p) => carp.rojo.items.push(fila(p, 'rojo')));
+      publicaciones.filter((p) => ['pendiente', 'manual', 'publicando'].includes(p.estado)).sort(orden)
+        .forEach((p) => carp.amarillo.items.push(fila(p, 'amarillo')));
+      publicaciones.filter((p) => p.estado === 'publicado').sort((a, b) => new Date(b.publicado_en || b.programado_para) - new Date(a.publicado_en || a.programado_para))
+        .forEach((p) => carp.verde.items.push(fila(p, 'verde')));
+      const bloques = ['rojo', 'amarillo', 'verde'].filter((k) => carp[k].items.length).map((k) =>
+        `<details class="carpeta ${k}" ${k === 'verde' ? '' : 'open'}>
+          <summary><span class="carpeta-icono">${carp[k].icono}</span><span class="carpeta-nombre">${carp[k].nombre}</span>
+            <span class="carpeta-num">${carp[k].items.length}</span></summary>
+          <div class="carpeta-ayuda">${carp[k].ayuda}</div>
+          ${carp[k].items.join('')}
+        </details>`).join('');
+      return `<div class="leyenda">🟢 Publicado &nbsp; 🟡 Programado o por publicar &nbsp; 🔴 Error</div>
+        <p class="vacio" style="margin:4px 0 8px">YouTube sale solo a la hora que confirmes. Instagram lo programa Bartolo en Meta. Facebook y TikTok los subes tú: te avisa el calendario.</p>
+        ${bloques || '<p class="vacio">No hay nada en el calendario. Programa un vídeo desde "Revisar vídeo".</p>'}`;
     }
 
     // Vistas: cada cosa en su pestaña para que la pantalla no sea una lista interminable.
@@ -655,6 +686,16 @@
           await recargarPublicaciones();
           const abiertas = publicaciones.filter((p) => p.guion_id === id && ['pendiente', 'publicando', 'manual', 'error'].includes(p.estado));
           if (!abiertas.length) await actualizar(id, { estado: 'publicado' });
+        } else if (accion === 'eliminar_pub') {
+          if (!confirm('¿Quitar esta publicación del calendario? Si ya estaba publicada, el vídeo seguirá en la red; solo desaparece de aquí.')) return;
+          const { error } = await sb.from('publicaciones').delete().eq('id', boton.dataset.pub);
+          if (error) { avisar('No se pudo eliminar: ' + error.message); return; }
+          await recargarPublicaciones();
+        } else if (accion === 'reabrir_pub') {
+          if (!confirm('¿Marcarla como NO publicada? Volverá a "por publicar" (a mano).')) return;
+          const { error } = await sb.from('publicaciones').update({ estado: 'manual', publicado_en: null }).eq('id', boton.dataset.pub);
+          if (error) { avisar('No se pudo cambiar: ' + error.message); return; }
+          await recargarPublicaciones();
         } else if (accion === 'eliminar') {
           if (!confirm(`¿Seguro que quieres eliminar ${g.codigo}?`)) return;
           await eliminar(id);
