@@ -87,6 +87,8 @@
     .tarjeta.video.gris { border-left-color: #9ca3af; }
     .chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0; }
     .chip { font-size: 0.85rem; padding: 4px 10px; border-radius: 999px; background: #e5e7eb; }
+    button.chip { border: 0; font-size: 0.95rem; padding: 9px 14px; cursor: pointer; color: var(--texto); }
+    .ayuda-chips { font-size: 0.8rem; color: var(--suave); margin: 0 0 8px; }
     .chip.verde { background: #bbf7d0; color: #14532d; }
     .chip.amarillo { background: #fde68a; color: #713f12; }
     .chip.rojo { background: #fecaca; color: #7f1d1d; }
@@ -257,7 +259,8 @@
       const color = g.estado === 'rechazado' ? 'gris' : ev.color;
       const redes = conRedes
         ? `<div class="chips">${ev.redes.map(([r, c]) =>
-          `<span class="chip ${c}">${c === 'verde' ? '✔' : c === 'amarillo' ? '⏳' : c === 'rojo' ? '✖' : '○'} ${escapar(NOMBRE_PLAT[r] || r)}</span>`).join('')}</div>`
+          `<button class="chip ${c}" data-accion="marcar_red" data-red="${r}">${c === 'verde' ? '✔' : c === 'amarillo' ? '⏳' : c === 'rojo' ? '✖' : '○'} ${escapar(NOMBRE_PLAT[r] || r)}</button>`).join('')}</div>
+          <div class="ayuda-chips">Toca una red para marcarla como publicada ✔ (o para quitarla).</div>`
           + (ev.aviso ? `<div class="aviso-manual">⚠ ${escapar(ev.aviso)}</div>` : '')
         : '';
       return `<article class="tarjeta video ${color}" data-id="${g.id}">
@@ -342,10 +345,11 @@
         }
         const e = estadoVideo(g);
         const chips = e.redes.map(([r, c]) =>
-          `<span class="chip ${c}">${c === 'verde' ? '✔' : c === 'amarillo' ? '⏳' : c === 'rojo' ? '✖' : '○'} ${escapar(NOMBRE_PLAT[r] || r)}</span>`).join('');
+          `<button class="chip ${c}" data-accion="marcar_red" data-red="${r}">${c === 'verde' ? '✔' : c === 'amarillo' ? '⏳' : c === 'rojo' ? '✖' : '○'} ${escapar(NOMBRE_PLAT[r] || r)}</button>`).join('');
         carpetas[e.color].items.push(`<article class="tarjeta video ${e.color}" data-id="${g.id}">
           <h3><span class="codigo">${escapar(g.codigo)}</span>${escapar(g.titulo)}</h3>
           <div class="chips">${chips}</div>
+          <div class="ayuda-chips">Toca una red para marcarla como publicada ✔ (o para quitarla).</div>
           ${e.aviso ? `<div class="aviso-manual">⚠ ${escapar(e.aviso)}</div>` : `<div class="estado-video">${escapar(e.texto)}</div>`}
           ${botones}
           <details><summary>📅 Fechas y botones de publicación</summary>${htmlSeguimiento(g)}</details>
@@ -363,7 +367,7 @@
       return `<div class="leyenda">🟢 Las 4 redes publicadas &nbsp; 🟡 Pendiente o a medias &nbsp; 🔴 Error</div>
         ${bloques || '<p class="vacio">Todavía no hay vídeos.</p>'}
         <details class="subida"><summary>➕ Subir un vídeo nuevo</summary>
-          <label for="archivo-video">El nombre debe ser G-###.mp4, por ejemplo G-008.mp4</label>
+          <label for="archivo-video">Elige uno o varios .mp4. Se numeran solos (G-031, G-032…) en orden de creación; si ya se llaman G-###.mp4, mantienen su número.</label>
           <input id="archivo-video" type="file" accept="video/mp4" multiple>
           <div class="acciones"><button class="principal" data-accion="subir_videos">Subir a la biblioteca</button></div>
         </details>`;
@@ -490,25 +494,58 @@
       if (accion === 'subir_videos') {
         const archivos = [...($('archivo-video').files || [])];
         if (!archivos.length) { avisar('Elige primero uno o más vídeos.'); return; }
+        // Los vídeos que no se llaman G-###.mp4 reciben solos el siguiente número libre,
+        // en el orden en que se crearon los archivos. Así se pueden subir de golpe los de Flow.
+        const num = (c) => parseInt(String(c).replace(/\D/g, ''), 10) || 0;
+        let ultimo = Math.max(0, ...guiones.map((x) => num(x.codigo)), ...videosLib.map((v) => num(v.name)));
+        archivos.sort((a, b) => (a.lastModified - b.lastModified) || a.name.localeCompare(b.name));
+        const hechos = [];
         for (const f of archivos) {
+          if (!/\.mp4$/i.test(f.name)) { avisar(`"${f.name}" no se sube: solo se admiten vídeos .mp4.`); break; }
+          if (f.size > 50 * 1048576) { avisar(`"${f.name}" pesa más de 50 MB.`); break; }
           const m = f.name.match(/^(G-\d{3})\.mp4$/i);
-          if (!m) { avisar(`"${f.name}" no se sube: el nombre debe ser G-###.mp4 (por ejemplo G-008.mp4).`); return; }
-          if (f.size > 50 * 1048576) { avisar(`"${f.name}" pesa más de 50 MB.`); return; }
-          const cod = m[1].toUpperCase();
+          let cod;
+          let nuevo = false;
+          if (m) cod = m[1].toUpperCase();
+          else { ultimo += 1; cod = 'G-' + String(ultimo).padStart(3, '0'); nuevo = true; }
+          avisar(`Subiendo ${hechos.length + 1} de ${archivos.length}: ${cod}…`);
           const { error } = await sb.storage.from(BUCKET_VIDEOS)
-            .upload(cod + '.mp4', f, { upsert: true, contentType: 'video/mp4' });
-          if (error) { avisar(`No se pudo subir ${f.name}: ${error.message}`); return; }
-          const g = guiones.find((x) => x.codigo === cod);
-          // Un vídeo nuevo de un guion aprobado pasa a "Revisar vídeo".
-          if (g && ['aprobado_guion', 'video_subido'].includes(g.estado)) await actualizar(g.id, { estado: 'pendiente_revision' });
+            .upload(cod + '.mp4', f, { upsert: !nuevo, contentType: 'video/mp4' });
+          if (error) { avisar(`No se pudo subir ${f.name}: ${error.message}`); break; }
+          let g = guiones.find((x) => x.codigo === cod);
+          if (!g) {
+            const titulo = f.name.replace(/\.mp4$/i, '').replace(/[_-]+/g, ' ').trim().slice(0, 80) || cod;
+            const { error: e2 } = await sb.from('guiones').insert({
+              codigo: cod, titulo, guion: 'Vídeo subido directamente al panel, sin guion.',
+              prompt_flow: 'Vídeo creado a mano por el usuario.', personajes: [],
+              texto_publicacion: '', hashtags: '', estado: 'pendiente_revision',
+            });
+            if (e2) { avisar(`Se subió ${cod}, pero no se pudo crear su ficha: ${e2.message}`); break; }
+          } else if (['aprobado_guion', 'video_subido'].includes(g.estado)) {
+            // Un vídeo nuevo de un guion aprobado pasa a "Revisar vídeo".
+            await actualizar(g.id, { estado: 'pendiente_revision' });
+          }
+          hechos.push(nuevo ? `${f.name} → ${cod}` : cod);
         }
-        avisar('');
+        const { data: gs } = await sb.from('guiones').select('*').order('codigo');
+        if (gs) guiones = gs;
         await cargarBiblioteca();
+        if (hechos.length && hechos.length === archivos.length) avisar(`Subidos ${hechos.length}: ${hechos.join(', ')}`);
+        else if (hechos.length) avisar(`Se subieron ${hechos.length} de ${archivos.length} (${hechos.join(', ')}). Los demás no: mira el motivo arriba y vuelve a elegirlos.`);
       } else if (accion === 'ver_video') {
+        const visor = boton.closest('.pub').querySelector('.visor');
+        // Segundo toque en "Ver": esconde el vídeo (y para su reproducción).
+        if (visor.innerHTML.trim()) {
+          const v = visor.querySelector('video');
+          if (v) { v.pause(); v.removeAttribute('src'); v.load(); }
+          visor.innerHTML = '';
+          boton.textContent = '▶ Ver';
+          return;
+        }
         const { data } = await sb.storage.from(BUCKET_VIDEOS).createSignedUrl(ruta, 3600);
         if (!data) { avisar('No se pudo abrir el vídeo.'); return; }
-        boton.closest('.pub').querySelector('.visor').innerHTML =
-          `<video class="reproductor" controls playsinline src="${escapar(data.signedUrl)}"></video>`;
+        visor.innerHTML = `<video class="reproductor" controls playsinline src="${escapar(data.signedUrl)}"></video>`;
+        boton.textContent = '▲ Esconder';
         return;
       } else if (accion === 'descargar_video') {
         const url = await signedUrlDescarga(ruta.replace(/\.mp4$/i, ''));
@@ -686,6 +723,31 @@
           await recargarPublicaciones();
           const abiertas = publicaciones.filter((p) => p.guion_id === id && ['pendiente', 'publicando', 'manual', 'error'].includes(p.estado));
           if (!abiertas.length) await actualizar(id, { estado: 'publicado' });
+        } else if (accion === 'marcar_red') {
+          // Marca o desmarca "publicado" en una red a mano; con las cuatro marcadas el guion pasa a publicado.
+          const red = boton.dataset.red;
+          const filas = publicaciones.filter((p) => p.guion_id === id && p.plataforma === red);
+          const ya = filas.some((p) => p.estado === 'publicado');
+          const ahora = new Date().toISOString();
+          if (ya) {
+            if (!confirm(`¿Quitar la marca de publicado en ${NOMBRE_PLAT[red]}?`)) return;
+            const { error } = await sb.from('publicaciones').delete().eq('guion_id', id).eq('plataforma', red).eq('estado', 'publicado');
+            if (error) { avisar('No se pudo quitar: ' + error.message); return; }
+          } else if (filas.length) {
+            const { error } = await sb.from('publicaciones').update({ estado: 'publicado', publicado_en: ahora }).eq('id', filas[0].id);
+            if (error) { avisar('No se pudo marcar: ' + error.message); return; }
+          } else {
+            const { error } = await sb.from('publicaciones').insert({
+              guion_id: id, plataforma: red, ruta_video: g.codigo + '.mp4',
+              programado_para: ahora, estado: 'publicado', publicado_en: ahora,
+            });
+            if (error) { avisar('No se pudo marcar: ' + error.message); return; }
+          }
+          await recargarPublicaciones();
+          const todas = ORDEN_REDES.every((r) => publicaciones.some((p) => p.guion_id === id && p.plataforma === r && p.estado === 'publicado'));
+          if (todas && g.estado !== 'publicado') await actualizar(id, { estado: 'publicado' });
+          else if (!todas && g.estado === 'publicado') await actualizar(id, { estado: 'pendiente_revision' });
+          avisar('');
         } else if (accion === 'eliminar_pub') {
           if (!confirm('¿Quitar esta publicación del calendario? Si ya estaba publicada, el vídeo seguirá en la red; solo desaparece de aquí.')) return;
           const { error } = await sb.from('publicaciones').delete().eq('id', boton.dataset.pub);
