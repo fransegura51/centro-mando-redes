@@ -602,6 +602,21 @@
       await cargarPendientes();
       await recargarPublicaciones();
       await cargarBiblioteca();
+      // Todo vídeo G-###.mp4 de la biblioteca sin ficha recibe una: aparece en Vídeos y en Guiones
+      // como "no publicado" (pendiente de revisión), con las mismas opciones para publicarlo.
+      const sinFicha = videosLib.map((v) => v.name.replace(/\.mp4$/i, '').toUpperCase())
+        .filter((c) => /^G-\d{3}$/.test(c) && !guiones.some((g) => g.codigo === c));
+      if (sinFicha.length) {
+        const { error: e3 } = await sb.from('guiones').insert(sinFicha.map((c) => ({
+          codigo: c, titulo: 'Vídeo ' + c, guion: 'Vídeo subido directamente al panel, sin guion.',
+          prompt_flow: 'Vídeo creado a mano por el usuario.', personajes: [],
+          texto_publicacion: '', hashtags: '', estado: 'pendiente_revision',
+        })));
+        if (!e3) {
+          const { data: gs2 } = await sb.from('guiones').select('*').order('codigo');
+          if (gs2) guiones = gs2;
+        }
+      }
       pintar();
     }
 
