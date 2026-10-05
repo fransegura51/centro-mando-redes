@@ -233,7 +233,7 @@
       let extra = '';
       if (g.estado === 'pendiente_revision') {
         extra = htmlRevision(g);
-        acciones = `<button class="principal" data-accion="aprobar_video">Aprobar y programar</button>
+        acciones = `<button class="principal" data-accion="aprobar_video">Aprobar y programar (elige antes la fecha)</button>
           <button class="secundario" data-accion="rechazar">Rechazar</button>`;
       } else if (!['borrador', 'rechazado', 'aprobado_guion'].includes(g.estado) || publicaciones.some((p) => p.guion_id === g.id)) {
         extra = htmlSeguimiento(g);
@@ -671,12 +671,19 @@
           if (motivo === null) return;
           await actualizar(id, { estado: 'rechazado', motivo_rechazo: motivo.trim() || null });
         } else if (accion === 'aprobar_video') {
-          const v = tarjeta.querySelector('[data-campo=fecha]').value;
+          const campoFecha = tarjeta.querySelector('[data-campo=fecha]');
+          // El aviso sale como ventana delante de la pantalla (el aviso de arriba no se ve desde una tarjeta lejana).
+          const falta = (msg, campo) => {
+            alert(msg);
+            if (campo) { campo.scrollIntoView({ block: 'center' }); campo.style.outline = '3px solid #ef4444'; campo.focus(); }
+          };
+          const v = campoFecha.value;
           const hora = new Date(v);
-          if (!v || isNaN(hora.getTime())) { avisar('Elige tú la fecha y la hora de publicación. No se publica nada sin ella.'); return; }
-          if (hora.getTime() < Date.now() - 60000) { avisar('Esa fecha y hora ya han pasado.'); return; }
+          if (!v || isNaN(hora.getTime())) { falta('Antes elige la FECHA y la HORA de publicación en el campo de esta tarjeta. No se publica nada sin ella.', campoFecha); return; }
+          campoFecha.style.outline = '';
+          if (hora.getTime() < Date.now() - 60000) { falta('Esa fecha y hora ya han pasado. Elige una futura.', campoFecha); return; }
           const redes = [...tarjeta.querySelectorAll('[data-plataforma]:checked')].map((x) => x.dataset.plataforma);
-          if (!redes.length) { avisar('Elige al menos una red.'); return; }
+          if (!redes.length) { alert('Marca al menos una red donde publicar.'); return; }
           if (!confirm(`¿Confirmas publicar ${g.codigo} en ${redes.map((r) => NOMBRE_PLAT[r]).join(', ')} el ${fechaEs(hora.toISOString())}?`)) return;
           const filas = redes.map((r) => ({
             guion_id: id, plataforma: r, ruta_video: g.codigo + '.mp4',
