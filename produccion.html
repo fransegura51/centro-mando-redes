@@ -185,7 +185,8 @@
     function htmlRevision(g) {
       const redes = PLATAFORMAS.map(([k, n]) =>
         `<label class="check"><input type="checkbox" data-plataforma="${k}" checked> ${n}</label>`).join('');
-      return `<video class="reproductor" data-ruta="${escapar(g.codigo)}.mp4" controls playsinline preload="metadata"></video>
+      return `<div class="acciones"><button class="secundario" data-accion="ocultar_video">▲ Esconder vídeo</button></div>
+        <video class="reproductor" data-ruta="${escapar(g.codigo)}.mp4" controls playsinline preload="metadata"></video>
         <label>Fecha y hora de publicación (la eliges tú; no se publica nada sin ella)</label>
         <input type="datetime-local" data-campo="fecha">
         <label>Dónde</label>${redes}`;
@@ -671,6 +672,14 @@
         boton.disabled = true;
         try { await pedirGuiones(); } finally { boton.disabled = false; }
         pintar();
+        return;
+      }
+      if (boton.dataset.accion === 'ocultar_video') {
+        // Esconde o muestra el reproductor de esta tarjeta (al esconderlo, se para).
+        const vid = boton.closest('[data-id]').querySelector('video.reproductor');
+        if (!vid) return;
+        if (vid.hidden) { vid.hidden = false; boton.textContent = '▲ Esconder vídeo'; }
+        else { vid.pause(); vid.hidden = true; boton.textContent = '▶ Ver vídeo'; }
         return;
       }
       const tarjeta = boton.closest('[data-id]');
