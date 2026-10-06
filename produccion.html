@@ -73,6 +73,9 @@
     .sube { color: #1b873f; } .baja { color: #c62828; }
     .aviso-almacen { border-radius: 12px; padding: 10px 14px; margin-bottom: 10px; font-weight: 600; line-height: 1.4; }
     .aviso-almacen.alto { background: #ffe0e0; border: 2px solid #e53935; color: #7a1010; }
+    .enlace-boton { display: inline-block; text-decoration: none; text-align: center; padding: 10px 16px; border-radius: 10px; font-weight: 700; }
+    .enlace-boton.principal { background: #2f7d5b; color: #fff; }
+    .enlace-boton.secundario { background: #fff; color: #1f1b2e; border: 2px solid #d9d4e6; }
     .resumen-redes { margin-bottom: 12px; }
     .total-redes { background: #1f1b2e; color: #fff; border-radius: 14px; padding: 14px 18px; display: flex; justify-content: space-between; align-items: center; }
     .total-redes b { font-size: 1.9rem; }
@@ -550,6 +553,30 @@
         ${tarjetas}`;
     }
 
+
+    // ---- Web de PEPA: "La vida con Paco" muestra los vídeos de TikTok con su miniatura ----
+    function htmlWeb() {
+      return `<div class="tarjeta">
+          <h3>🌐 Web de PEPA Family App</h3>
+          <p class="ayuda-chips">Cada vídeo de TikTok se enseña en la web con su miniatura y el enlace a TikTok. Hay 40 publicados.</p>
+          <div class="acciones">
+            <a class="enlace-boton principal" href="https://pepafamilyapp.es/paco/" target="_blank" rel="noopener">▶️ Ver «La vida con Paco»</a>
+            <a class="enlace-boton secundario" href="https://pepafamilyapp.es/" target="_blank" rel="noopener">🏠 Web completa</a>
+          </div>
+          <div class="acciones">
+            <a class="enlace-boton secundario" href="https://pepafamilyapp.es/admin/videos" target="_blank" rel="noopener">⚙️ Panel de administrador (Vídeos de Paco)</a>
+            <a class="enlace-boton secundario" href="https://pepafamilyapp.es/admin/videos?nuevo=1" target="_blank" rel="noopener">➕ Añadir un vídeo a mano</a>
+          </div>
+        </div>
+        <details class="carpeta verde" open><summary><span class="carpeta-icono">🤖</span><span class="carpeta-nombre">Cómo se sube un vídeo nuevo a la web</span></summary>
+          <div class="conclusiones">
+            <p><b>1.</b> Publicas el vídeo en TikTok.</p>
+            <p><b>2.</b> Cada día, Bartolo revisa TikTok Studio y compara con la web.</p>
+            <p><b>3.</b> Por cada vídeo que falte, guarda su miniatura (un fotograma de TikTok), crea la ficha en el panel de administrador de la web con el título y el enlace de TikTok, y lo publica.</p>
+            <p><b>4.</b> Si quieres que salga al momento, dile a Bartolo: «sube a la web lo nuevo de TikTok».</p>
+          </div></details>`;
+    }
+
     // Vistas: cada cosa en su pestaña para que la pantalla no sea una lista interminable.
     let vista = 'videos';
     try { vista = localStorage.getItem('cmr_vista') || 'videos'; } catch (e) { /* sin almacenamiento */ }
@@ -584,6 +611,7 @@
         ['guiones', `Guiones creados (${nCre})`],
         ['sin_crear', `Guiones sin crear (${nSin})`],
         ['redes', '📊 Redes'],
+        ['web', '🌐 Web'],
         ['pedir', 'Pedir guiones'],
       ];
       return `<div class="pestanas">${tabs.map(([k, n]) =>
@@ -594,6 +622,7 @@
       let cuerpo;
       if (vista === 'calendario') cuerpo = htmlCalendario();
       else if (vista === 'redes') cuerpo = htmlRedes();
+      else if (vista === 'web') cuerpo = htmlWeb();
       else if (vista === 'pedir') cuerpo = htmlPeticion();
       else if (vista === 'guiones' || vista === 'sin_crear') {
         const sinCrear = vista === 'sin_crear';
