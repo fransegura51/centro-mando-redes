@@ -71,6 +71,8 @@
     .tabla-dia th, .tabla-dia td { padding: 6px 8px; text-align: right; border-bottom: 1px solid #eee; white-space: nowrap; }
     .tabla-dia th:first-child, .tabla-dia td:first-child { text-align: left; }
     .sube { color: #1b873f; } .baja { color: #c62828; }
+    .aviso-almacen { border-radius: 12px; padding: 10px 14px; margin-bottom: 10px; font-weight: 600; line-height: 1.4; }
+    .aviso-almacen.alto { background: #ffe0e0; border: 2px solid #e53935; color: #7a1010; }
     .resumen-redes { margin-bottom: 12px; }
     .total-redes { background: #1f1b2e; color: #fff; border-radius: 14px; padding: 14px 18px; display: flex; justify-content: space-between; align-items: center; }
     .total-redes b { font-size: 1.9rem; }
@@ -538,6 +540,23 @@
     // Un guion está "creado" cuando su vídeo ya está subido al panel; si no, "sin crear".
     function tieneVideo(g) { return videosLib.some((o) => o.name === `${g.codigo}.mp4`); }
 
+
+    // Espacio de vídeos en Supabase (plan gratuito: 1 GB). Aviso a partir del 85 %.
+    const LIMITE_ALMACEN = 1024 * 1024 * 1024;
+    function usoAlmacen() {
+      const usado = videosLib.reduce((a, v) => a + ((v.metadata && v.metadata.size) || 0), 0);
+      return { usado, pct: Math.round((usado / LIMITE_ALMACEN) * 100) };
+    }
+    function htmlAlmacen(siempre) {
+      const { usado, pct } = usoAlmacen();
+      if (!usado) return '';
+      const mb = Math.round(usado / 1048576);
+      if (pct >= 85) {
+        return `<div class="aviso-almacen alto">⚠️ El espacio de vídeos está al ${pct} % (${mb} MB de 1.024 MB). Cuando se llene no se podrán subir más vídeos. Borra vídeos antiguos ya publicados (los tienes en tu ordenador) o pide ayuda a Bartolo.</div>`;
+      }
+      return siempre ? `<p class="ayuda-chips">💾 Espacio de vídeos: ${pct} % usado (${mb} MB de 1.024 MB del plan gratuito). Te avisaré aquí al llegar al 85 %.</p>` : '';
+    }
+
     function htmlPestanas() {
       const nCal = publicaciones.filter((p) => ['pendiente', 'manual', 'error'].includes(p.estado)).length;
       const nCre = guiones.filter((g) => tieneVideo(g) && g.estado !== 'rechazado').length;
@@ -582,7 +601,7 @@
       } else cuerpo = htmlBiblioteca();
       const campo = $('num-guiones');
       const valor = campo ? campo.value : '';
-      $('contenido').innerHTML = htmlPestanas() + cuerpo;
+      $('contenido').innerHTML = htmlAlmacen(false) + htmlPestanas() + (vista === 'redes' ? htmlAlmacen(true) : '') + cuerpo;
       if (valor && $('num-guiones')) $('num-guiones').value = valor;
       cargarVideos();
     }
