@@ -30,6 +30,8 @@
     .estado { display: inline-block; font-size: .78rem; padding: 2px 8px; border-radius: 999px; background: #e5e7eb; margin-right: 6px; }
     .estado.borrador, .estado.por_contactar { background: #fef9c3; }
     .estado.enviado, .estado.contactado { background: #dbeafe; }
+    .estado.pendiente_ti { background: #fee2e2; color: #991b1b; font-weight: 700; }
+    .estado.recibido { background: #e5e7eb; }
     .estado.respondido, .estado.respondio, .estado.interesado { background: #dcfce7; }
     .estado.no_interesa, .estado.baja { background: #fee2e2; }
     .estado.pendiente { background: #fef9c3; } .estado.invitado { background: #dcfce7; }
@@ -69,7 +71,7 @@
     });
     const NICHOS = { ampa: 'AMPA / colegios', familias_numerosas: 'Familias numerosas', crianza: 'Crianza (blogs y creadores)', custodia: 'Custodia compartida', otros: 'Otros' };
     const EST_CONTACTO = { por_contactar: 'Por contactar', contactado: 'Contactado', respondio: 'Respondió', interesado: 'Interesado', no_interesa: 'No le interesa', baja: 'Baja (no escribir más)' };
-    const EST_CORREO = { borrador: 'Borrador', enviado: 'Enviado', respondido: 'Respondido' };
+    const EST_CORREO = { borrador: 'Borrador', enviado: 'Enviado', respondido: 'Respondido', pendiente_ti: 'Necesita tu respuesta', recibido: 'Recibido' };
     let vista = 'resumen', filtro = 'todos';
     let contactos = [], correos = [], espera = [];
 
@@ -96,13 +98,14 @@
     }
 
     function htmlResumen() {
-      const n = (e) => correos.filter((c) => c.estado === e).length;
+      const n = (e) => correos.filter((c) => c.estado === e && (e !== 'respondido' || true)).length;
       const kpi = (num, txt, color) => `<div class="kpi" style="border-color:${color || '#0f766e'}"><b>${num}</b><span>${txt}</span></div>`;
       const pend = espera.filter((e) => e.estado === 'pendiente').length;
       const pct = Math.min(100, Math.round(espera.length / 20 * 100));
       const ultimos = espera.slice(0, 5).map((e) => `<div class="tarjeta"><b>${escapar(e.email)}</b><br><small>${e.nombre ? escapar(e.nombre) + ' · ' : ''}${fecha(e.fecha + 'T12:00:00')}${e.origen ? ' · ' + escapar(e.origen) : ''}</small></div>`).join('');
       const resp = correos.filter((c) => c.estado === 'respondido').slice(0, 3).map(tarjetaCorreo).join('');
-      return `<div class="kpis">${kpi(espera.length, 'personas en la lista de espera', '#7c3aed')}${kpi(pend, 'por invitar', '#e8a317')}${kpi(contactos.length, 'contactos de ventas')}${kpi(n('borrador'), 'correos en borrador', '#e8a317')}${kpi(n('enviado'), 'correos enviados', '#2563eb')}${kpi(n('respondido'), 'respuestas', '#15803d')}</div>
+      const urgentes = correos.filter((c) => c.estado === 'pendiente_ti').map(tarjetaCorreo).join('');
+      return `${urgentes ? `<h3>⚠ Necesitan tu respuesta (${n('pendiente_ti')})</h3>${urgentes}` : ''}<div class="kpis">${kpi(n('pendiente_ti'), 'necesitan tu respuesta', '#e53935')}${kpi(espera.length, 'personas en la lista de espera', '#7c3aed')}${kpi(pend, 'por invitar', '#e8a317')}${kpi(contactos.length, 'contactos de ventas')}${kpi(correos.filter((c) => c.direccion === 'entrada').length, 'correos recibidos', '#6b7280')}${kpi(n('borrador'), 'correos en borrador', '#e8a317')}${kpi(n('enviado'), 'correos enviados', '#2563eb')}${kpi(n('respondido'), 'respuestas', '#15803d')}</div>
         <div class="tarjeta"><b>Las 20 primeras familias, gratis</b><br><small>${Math.min(espera.length, 20)} de 20 plazas con alguien apuntado en la web</small>
           <div class="barra" style="margin-top:8px"><i style="width:${pct}%"></i></div></div>
         <h3>📬 Últimos que se han apuntado</h3>${ultimos || '<p class="vacio">Nadie todavía.</p>'}
@@ -110,19 +113,23 @@
     }
 
     function tarjetaCorreo(c) {
+      const entrada = c.direccion === 'entrada';
       const acc = c.estado === 'borrador'
         ? `<button class="principal" data-accion="correo_enviado" data-id="${c.id}">Marcar como enviado</button>`
-        : c.estado === 'enviado' ? `<button class="principal" data-accion="correo_respuesta" data-id="${c.id}">Apuntar respuesta</button>` : '';
-      return `<article class="tarjeta"><h3>${escapar(c.asunto)}</h3>
-        <span class="estado ${c.estado}">${EST_CORREO[c.estado] || c.estado}</span><small>Para: ${escapar(c.para_nombre || c.para_email || '—')}${c.para_email && c.para_nombre ? ' · ' + escapar(c.para_email) : ''}${c.enviado_en ? ' · enviado ' + fecha(c.enviado_en) : ''}${c.respuesta_en ? ' · respuesta ' + fecha(c.respuesta_en) : ''}</small>
-        ${c.respuesta ? `<pre>💬 ${escapar(c.respuesta)}</pre>` : ''}
-        ${c.cuerpo ? `<details><summary>Ver el correo</summary><pre>${escapar(c.cuerpo)}</pre></details>` : ''}
+        : c.estado === 'enviado' ? `<button class="principal" data-accion="correo_respuesta" data-id="${c.id}">Apuntar respuesta</button>`
+        : c.estado === 'pendiente_ti' ? `<a class="principal" style="text-decoration:none;display:inline-block" href="mailto:${escapar(c.remitente_email || c.para_email || '')}?subject=${encodeURIComponent('Re: ' + (c.asunto || ''))}">Contestar yo</a><button class="secundario" data-accion="correo_resuelto" data-id="${c.id}">Ya está contestado</button>` : '';
+      const quien = entrada ? `De: ${escapar(c.para_nombre || c.remitente_email || '—')}${c.remitente_email ? ' · ' + escapar(c.remitente_email) : ''}` : `Para: ${escapar(c.para_nombre || c.para_email || '—')}${c.para_email && c.para_nombre ? ' · ' + escapar(c.para_email) : ''}`;
+      return `<article class="tarjeta" ${c.estado === 'pendiente_ti' ? 'style="border-color:#ef4444;border-width:2px"' : ''}><h3>${entrada ? '↩ ' : ''}${escapar(c.asunto)}</h3>
+        <span class="estado ${c.estado}">${EST_CORREO[c.estado] || c.estado}</span><small>${quien}${c.enviado_en ? ' · enviado ' + fecha(c.enviado_en) : ''}${c.respuesta_en ? ' · respuesta ' + fecha(c.respuesta_en) : ''}${entrada ? ' · recibido ' + fecha(c.creado_en) : ''}</small>
+        ${entrada && c.cuerpo ? `<pre>✉️ ${escapar(c.cuerpo)}</pre>` : ''}
+        ${c.respuesta ? `<pre>${entrada ? '🤖 Contestó Pepo: ' : '💬 '}${escapar(c.respuesta)}</pre>` : ''}
+        ${!entrada && c.cuerpo ? `<details><summary>Ver el correo</summary><pre>${escapar(c.cuerpo)}</pre></details>` : ''}
         <div class="acciones">${acc}<button class="secundario" data-accion="correo_borrar" data-id="${c.id}">Quitar</button></div></article>`;
     }
 
     function htmlCorreos() {
-      const lista = correos.filter((c) => filtro === 'todos' || c.estado === filtro);
-      const chips = ['todos', 'borrador', 'enviado', 'respondido'].map((f) => `<button class="${f === filtro ? 'activa' : ''}" data-accion="filtro" data-filtro="${f}">${f === 'todos' ? 'Todos' : EST_CORREO[f]}</button>`).join('');
+      const lista = correos.filter((c) => filtro === 'todos' || (filtro === 'entrada' ? c.direccion === 'entrada' : c.estado === filtro));
+      const chips = ['todos', 'pendiente_ti', 'entrada', 'borrador', 'enviado', 'respondido'].map((f) => `<button class="${f === filtro ? 'activa' : ''}" data-accion="filtro" data-filtro="${f}">${f === 'todos' ? 'Todos' : f === 'entrada' ? '↩ Recibidos' : f === 'pendiente_ti' ? '⚠ Necesitan tu respuesta' : EST_CORREO[f]}</button>`).join('');
       return `<div class="chips">${chips}</div>
         <details><summary>➕ Apuntar un correo</summary><form class="nuevo" id="f-correo">
           <input id="c-nombre" placeholder="Para (organización o persona)"><input id="c-email" type="email" placeholder="Correo del destinatario">
@@ -185,6 +192,7 @@
           cargar();
         } return;
       }
+      if (a === 'correo_resuelto') { if (await guardar(sb.from('ventas_correos').update({ estado: 'respondido', respuesta_en: new Date().toISOString() }).eq('id', id))) cargar(); return; }
       if (a === 'correo_borrar') { if (!confirm('¿Quitar este correo de la lista?')) return; if (await guardar(sb.from('ventas_correos').delete().eq('id', id))) cargar(); return; }
       if (a === 'contacto_add') {
         if (!v('k-nombre')) { avisar('Escribe el nombre de la organización.'); return; }

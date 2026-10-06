@@ -8,3 +8,9 @@ node_modules/
 # Vídeos locales del estudio de contenido (no se publican)
 videos/
 web-miniaturas/
+
+# Correo de Pepo: contraseña y estado privados
+pepo-ventas/correo/.env
+pepo-ventas/correo/estado.json
+pepo-ventas/correo/ENVIO_ACTIVADO
+pepo-ventas/contactos/
