@@ -177,6 +177,7 @@
     let statsVid = []; // estadísticas por vídeo
     let ideasViral = []; // ideas y tendencias del investigador
     let statsDia = []; // total de visualizaciones por día y red
+    let analisisApp = []; // análisis de la app frente a la competencia
     let pendientes = 0; // peticiones de guiones sin atender
     let editando = null; // id del guion en edición
 
@@ -577,6 +578,45 @@
           </div></details>`;
     }
 
+
+    // ---- App de PEPA: acceso y análisis frente a la competencia ----
+    function htmlApp() {
+      const ver = (t) => analisisApp.filter((a) => a.tipo === t);
+      const enlaces = (txt) => String(txt || '').split(/\s*·\s*/).filter((u) => /^https?:\/\//.test(u))
+        .map((u) => `<a href="${escapar(u)}" target="_blank" rel="noopener">${escapar(u.replace(/^https?:\/\/(www\.)?/, '').slice(0, 42))}</a>`).join(' · ');
+      const acceso = `<div class="tarjeta">
+          <h3>📱 PEPA Family App</h3>
+          <div class="acciones">
+            <a class="enlace-boton principal" href="https://fransegura51.github.io/family-app/" target="_blank" rel="noopener">🚀 Abrir la app</a>
+            <a class="enlace-boton secundario" href="https://pepafamilyapp.es/demo/" target="_blank" rel="noopener">👀 Demo con familia de ejemplo</a>
+          </div>
+          <div class="acciones">
+            <a class="enlace-boton secundario" href="https://pepafamilyapp.es/funciones/" target="_blank" rel="noopener">🧩 Funciones</a>
+            <a class="enlace-boton secundario" href="https://pepafamilyapp.es/" target="_blank" rel="noopener">🏠 Web</a>
+          </div></div>`;
+      if (!analisisApp.length) return acceso + '<p class="vacio">Aún no hay análisis. Dile a Bartolo: «analiza la app frente a la competencia».</p>';
+      const fecha = analisisApp[0].actualizado_en ? new Date(analisisApp[0].actualizado_en + 'T12:00:00').toLocaleDateString('es-ES') : '';
+      const comp = ver('competidor').map((c) => `<details class="carpeta amarillo"><summary><span class="carpeta-icono">🏁</span><span class="carpeta-nombre">${escapar(c.nombre)}</span></summary>
+          <div class="conclusiones">
+            <p>👍 <b>Lo que gusta:</b> ${escapar(c.positivos)}</p>
+            <p>👎 <b>Lo que se critica:</b> ${escapar(c.negativos)}</p>
+            ${c.detalle ? `<p>💬 ${escapar(c.detalle)}</p>` : ''}
+            <p><small>Fuentes: ${enlaces(c.fuente)}</small></p>
+          </div></details>`).join('');
+      const bloque = (tipo, icono, titulo, abierto) => {
+        const it = ver(tipo); if (!it.length) return '';
+        return `<details class="carpeta verde" ${abierto ? 'open' : ''}><summary><span class="carpeta-icono">${icono}</span><span class="carpeta-nombre">${titulo}</span><span class="carpeta-num">${it.length}</span></summary>
+          <div class="conclusiones">${it.map((a) => `<p><b>${escapar(a.nombre)}</b><br>${escapar(a.detalle || a.positivos)}${a.negativos && tipo !== 'competidor' ? `<br><small>${escapar(a.negativos)}</small>` : ''}${a.fuente && /^https?:/.test(a.fuente) ? `<br><small>${enlaces(a.fuente)}</small>` : ''}</p>`).join('')}</div></details>`;
+      };
+      const notas = ver('nota').map((a) => `<p class="ayuda-chips"><b>${escapar(a.nombre)}:</b> ${escapar(a.positivos)} ${a.negativos ? '<br>' + escapar(a.negativos) : ''} ${a.detalle ? '<br>' + (enlaces(a.detalle) || escapar(a.detalle)) : ''}</p>`).join('');
+      return acceso + `<h3 class="titulo-bloque">🕵️ Experto en apps familiares · ${fecha}</h3>${notas}
+        <h3 class="titulo-bloque">🏁 La competencia: lo bueno y lo malo</h3>${comp}
+        ${bloque('hueco', '🎯', 'Huecos que nadie cubre bien', true)}
+        ${bloque('pon', '✅', 'Qué pondría', true)}
+        ${bloque('quita', '✂️', 'Qué quitaría o evitaría', false)}
+        ${bloque('consejo', '🏆', 'Consejos para ser los mejores', true)}`;
+    }
+
     // Vistas: cada cosa en su pestaña para que la pantalla no sea una lista interminable.
     let vista = 'videos';
     try { vista = localStorage.getItem('cmr_vista') || 'videos'; } catch (e) { /* sin almacenamiento */ }
@@ -612,6 +652,7 @@
         ['sin_crear', `Guiones sin crear (${nSin})`],
         ['redes', '📊 Redes'],
         ['web', '🌐 Web'],
+        ['app', '📱 App'],
         ['pedir', 'Pedir guiones'],
       ];
       return `<div class="pestanas">${tabs.map(([k, n]) =>
@@ -623,6 +664,7 @@
       if (vista === 'calendario') cuerpo = htmlCalendario();
       else if (vista === 'redes') cuerpo = htmlRedes();
       else if (vista === 'web') cuerpo = htmlWeb();
+      else if (vista === 'app') cuerpo = htmlApp();
       else if (vista === 'pedir') cuerpo = htmlPeticion();
       else if (vista === 'guiones' || vista === 'sin_crear') {
         const sinCrear = vista === 'sin_crear';
@@ -817,16 +859,18 @@
         }
       }
       try {
-        const [r1, r2, r3, r4] = await Promise.all([
+        const [r1, r2, r3, r4, r5] = await Promise.all([
           sb.from('estadisticas_resumen').select('*'),
           sb.from('estadisticas_videos').select('*').order('vistas', { ascending: false }).limit(500),
           sb.from('ideas_virales').select('*').order('fecha', { ascending: false }).order('id', { ascending: true }).limit(60),
           sb.from('estadisticas_diarias').select('*').order('fecha', { ascending: false }).limit(240),
+          sb.from('analisis_app').select('*').order('orden', { ascending: true }),
         ]);
         statsRes = r1.data || [];
         statsVid = r2.data || [];
         ideasViral = r3.data || [];
         statsDia = r4.data || [];
+        analisisApp = r5.data || [];
       } catch (e) { /* sin estadísticas todavía */ }
       pintar();
     }
