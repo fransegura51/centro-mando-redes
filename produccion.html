@@ -190,6 +190,7 @@
     let familias = []; // familias que tienen la app
     let planesF = []; // qué módulos son gratis o de pago
     let appResumen = []; // cifras sueltas de la app
+    let listaEspera = []; // personas que dejaron su correo en la web
     let pendientes = 0; // peticiones de guiones sin atender
     let editando = null; // id del guion en edición
 
@@ -655,10 +656,21 @@
           <div class="mod-cols"><button class="chip ${m.gratis ? 'verde' : 'gris'}" data-accion="plan_mod" data-modulo="${escapar(m.modulo)}" data-col="gratis">${m.gratis ? '✔' : '○'} Gratis</button>
             <button class="chip ${m.premium ? 'amarillo' : 'gris'}" data-accion="plan_mod" data-modulo="${escapar(m.modulo)}" data-col="premium">${m.premium ? '✔' : '○'} De pago</button></div></div>`).join('');
       const nGratis = planesF.filter((m) => m.gratis).length;
+      const NOMBRE_ESPERA = { pendiente: '🟡 Por invitar', invitado: '🟢 Invitado', descartado: '⚪ Descartado' };
+      const filasEspera = listaEspera.map((e) => `<div class="fila-fam ${e.estado}">
+          <div class="fam-datos"><b>${NOMBRE_ESPERA[e.estado]} · <a href="mailto:${escapar(e.email)}">${escapar(e.email)}</a></b>
+            <small>${e.nombre ? escapar(e.nombre) + ' · ' : ''}se apuntó el ${new Date(e.fecha + 'T12:00:00').toLocaleDateString('es-ES')}${e.origen ? ' · ' + escapar(e.origen) : ''}${e.codigo ? ' · código ' + escapar(e.codigo) : ''}</small>
+            ${e.mensaje ? `<small>💬 ${escapar(e.mensaje)}</small>` : ''}${e.notas ? `<small>📝 ${escapar(e.notas)}</small>` : ''}</div>
+          <div class="acciones">${e.estado === 'pendiente'
+            ? `<button class="principal" data-accion="espera_invitar" data-id-esp="${e.id}">Ya invitado (apuntar código)</button><button class="secundario" data-accion="espera_estado" data-id-esp="${e.id}" data-estado="descartado">Descartar</button>`
+            : `<button class="secundario" data-accion="espera_estado" data-id-esp="${e.id}" data-estado="pendiente">Volver a «por invitar»</button>`}</div></div>`).join('');
       return `<div class="resumen-redes"><div class="total-redes"><span>Familias con PEPA (de clientes)</span><b>${numES(total)}</b></div>
           <p class="ayuda-chips">Además hay ${pruebas} familias internas de pruebas y demo (no cuentan). ${numES(rs('interesados_web'))} persona(s) en la lista de espera de la web · ${numES(rs('visitas_web'))} visitas a la web · ${numES(rs('cuentas_con_usuario'))} cuentas de usuario creadas · ${numES(rs('avisos_activados'))} móviles con avisos.</p>
           <div class="kpis">${kpi(personas, 'personas en total', '#6c5ce7')}${kpi(n('gratis'), 'gratis', '#2f7d5b')}${kpi(n('premium'), 'de pago', '#e8a317')}${kpi(n('prueba'), 'en prueba', '#1877f2')}${kpi(activas, 'activas (30 días)', '#c13584')}${kpi(nuevas, 'nuevas (7 días)', '#e53935')}</div>
           <p class="ayuda-chips">Bartolo importa las familias de la app cada día (solo nombre, número de personas y fechas; nada de datos privados).</p></div>
+        <h3 class="titulo-bloque">📬 Lista de espera (${listaEspera.filter((e) => e.estado === 'pendiente').length} por invitar)</h3>
+        <p class="ayuda-chips">Gente que ha dejado su correo en la web. Escríbeles, dales su código de invitación y toca «Ya invitado». Bartolo añade aquí los nuevos cada día.</p>
+        <div class="lista-fam">${filasEspera || '<p class="vacio">Nadie en la lista de espera todavía.</p>'}</div>
         <h3 class="titulo-bloque">👨‍👩‍👧 Familias</h3>
         <details class="carpeta verde"><summary><span class="carpeta-icono">➕</span><span class="carpeta-nombre">Apuntar una familia a mano (solo si no está en la app)</span></summary>
           <div class="form-fam">
@@ -695,6 +707,17 @@
         const { error } = await sb.from('familias').delete().eq('id', f.id);
         if (error) { avisar('No se pudo quitar: ' + error.message); return; }
         familias = familias.filter((x) => x.id !== f.id); avisar('');
+      } else if (accion === 'espera_invitar' || accion === 'espera_estado') {
+        const e = listaEspera.find((x) => x.id === boton.dataset.idEsp); if (!e) return;
+        let cambios;
+        if (accion === 'espera_invitar') {
+          const cod = prompt(`Código de invitación que le has dado a ${e.email} (puedes dejarlo vacío):`, e.codigo || '');
+          if (cod === null) return;
+          cambios = { estado: 'invitado', codigo: cod.trim() || null };
+        } else { cambios = { estado: boton.dataset.estado }; }
+        const { error } = await sb.from('lista_espera').update(cambios).eq('id', e.id);
+        if (error) { avisar('No se pudo guardar: ' + error.message); return; }
+        Object.assign(e, cambios); avisar('');
       } else if (accion === 'plan_mod') {
         const m = planesF.find((x) => x.modulo === boton.dataset.modulo); if (!m) return;
         const col = boton.dataset.col; const nuevo = !m[col];
@@ -949,7 +972,7 @@
         }
       }
       try {
-        const [r1, r2, r3, r4, r5, r6, r7, r8] = await Promise.all([
+        const [r1, r2, r3, r4, r5, r6, r7, r8, r9] = await Promise.all([
           sb.from('estadisticas_resumen').select('*'),
           sb.from('estadisticas_videos').select('*').order('vistas', { ascending: false }).limit(500),
           sb.from('ideas_virales').select('*').order('fecha', { ascending: false }).order('id', { ascending: true }).limit(60),
@@ -958,6 +981,7 @@
           sb.from('familias').select('*').order('alta', { ascending: false }),
           sb.from('planes_funciones').select('*').order('orden', { ascending: true }),
           sb.from('app_resumen').select('*'),
+          sb.from('lista_espera').select('*').order('fecha', { ascending: false }),
         ]);
         statsRes = r1.data || [];
         statsVid = r2.data || [];
@@ -967,6 +991,7 @@
         familias = r6.data || [];
         planesF = r7.data || [];
         appResumen = r8.data || [];
+        listaEspera = r9.data || [];
       } catch (e) { /* sin estadísticas todavía */ }
       pintar();
     }
@@ -1024,7 +1049,7 @@
         pintar();
         return;
       }
-      if (['fam_add', 'fam_plan', 'fam_borrar', 'plan_mod'].includes(boton.dataset.accion)) { await accionFamilias(boton); return; }
+      if (['fam_add', 'fam_plan', 'fam_borrar', 'plan_mod', 'espera_invitar', 'espera_estado'].includes(boton.dataset.accion)) { await accionFamilias(boton); return; }
       if (boton.dataset.accion === 'ocultar_video') {
         // Esconde o muestra el reproductor de esta tarjeta (al esconderlo, se para).
         const vid = boton.closest('[data-id]').querySelector('video.reproductor');
