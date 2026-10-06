@@ -219,7 +219,7 @@
 
     function htmlSeguimiento(g) {
       const mias = publicaciones.filter((p) => p.guion_id === g.id).sort((a, b) => new Date(a.programado_para) - new Date(b.programado_para));
-      const tieneVideo = videosLib.some((v) => v.name === g.codigo + '.mp4');
+      const tieneVideo = !!g.video_archivado || videosLib.some((v) => v.name === g.codigo + '.mp4');
       if (!mias.length && !tieneVideo) return '';
       const lineas = mias.map((p) => {
         const abierta = ['pendiente', 'manual', 'error'].includes(p.estado);
@@ -370,6 +370,8 @@
           return;
         }
         const e = estadoVideo(g);
+        const botonesVid = e.color === 'verde' ? botones.replace('</div><div class="visor"></div>',
+          `<button class="secundario" data-accion="archivar_video" data-ruta="${escapar(v.name)}" title="Borra el archivo de Supabase para ganar espacio; la ficha se queda en el panel">🗄️ Quitar de Supabase</button></div><div class="visor"></div>`) : botones;
         const chips = e.redes.map(([r, c]) =>
           `<button class="chip ${c}" data-accion="marcar_red" data-red="${r}">${c === 'verde' ? '✔' : c === 'amarillo' ? '⏳' : c === 'rojo' ? '✖' : '○'} ${escapar(NOMBRE_PLAT[r] || r)}</button>`).join('');
         carpetas[e.color].items.push(`<article class="tarjeta video ${e.color}" data-id="${g.id}">
@@ -377,19 +379,34 @@
           <div class="chips">${chips}</div>
           <div class="ayuda-chips">Toca una red para marcarla como publicada ✔ (o para quitarla).</div>
           ${e.aviso ? `<div class="aviso-manual">⚠ ${escapar(e.aviso)}</div>` : `<div class="estado-video">${escapar(e.texto)}</div>`}
-          ${botones}
+          ${botonesVid}
           <details><summary>📅 Fechas y botones de publicación</summary>${htmlSeguimiento(g)}</details>
         </article>`);
       });
+      // Vídeos que ya se quitaron de Supabase: la ficha, las redes y el calendario se quedan aquí.
+      const archivados = guiones.filter((g) => g.video_archivado && !videosLib.some((v) => v.name === g.codigo + '.mp4'))
+        .sort((a, b) => b.codigo.localeCompare(a.codigo));
+      const htmlArchivados = archivados.length ? `<details class="carpeta gris">
+          <summary><span class="carpeta-icono">🗄️</span><span class="carpeta-nombre">Archivados (solo en tu ordenador)</span>
+            <span class="carpeta-num">${archivados.length}</span></summary>
+          <div class="carpeta-ayuda">Ya no ocupan espacio en Supabase. Siguen aquí con sus redes y fechas. Si quieres verlos, súbelos otra vez desde «Subir un vídeo nuevo».</div>
+          <div class="lista">${archivados.map((g) => {
+            const e = estadoVideo(g);
+            return `<article class="tarjeta video gris" data-id="${g.id}"><h3><span class="codigo">${escapar(g.codigo)}</span>${escapar(g.titulo)}</h3>
+              <div class="chips">${e.redes.map(([r, c]) => `<span class="chip ${c}">${c === 'verde' ? '✔' : '○'} ${escapar(NOMBRE_PLAT[r] || r)}</span>`).join('')}</div>
+              <div class="estado-video">🗄️ El vídeo está guardado en tu ordenador (Vídeos cloud)</div></article>`;
+          }).join('')}</div></details>` : '';
       const bloques = ['rojo', 'amarillo', 'verde', 'gris'].filter((k) => carpetas[k].items.length).map((k) => {
         const c = carpetas[k];
         return `<details class="carpeta ${k}" ${k === 'verde' || k === 'gris' ? '' : 'open'}>
           <summary><span class="carpeta-icono">${c.icono}</span><span class="carpeta-nombre">${c.nombre}</span>
             <span class="carpeta-num">${c.items.length}</span></summary>
           <div class="carpeta-ayuda">${c.ayuda}</div>
+          ${k === 'verde' ? `<div class="acciones"><button class="secundario" data-accion="archivar_todos">🗄️ Quitar de Supabase los ${c.items.length} publicados (se quedan en el panel)</button></div>
+            <div class="ayuda-chips">Libera espacio. Descarga antes los que no tengas en tu ordenador: no se puede deshacer.</div>` : ''}
           <div class="lista">${c.items.join('')}</div>
         </details>`;
-      }).join('');
+      }).join('') + htmlArchivados;
       return `<div class="leyenda">🟢 Las 4 redes publicadas &nbsp; 🟡 Pendiente o a medias &nbsp; 🔴 Error</div>
         ${bloques || '<p class="vacio">Todavía no hay vídeos.</p>'}
         <details class="subida"><summary>➕ Subir un vídeo nuevo</summary>
@@ -538,7 +555,7 @@
     try { vista = localStorage.getItem('cmr_vista') || 'videos'; } catch (e) { /* sin almacenamiento */ }
 
     // Un guion está "creado" cuando su vídeo ya está subido al panel; si no, "sin crear".
-    function tieneVideo(g) { return videosLib.some((o) => o.name === `${g.codigo}.mp4`); }
+    function tieneVideo(g) { return !!g.video_archivado || videosLib.some((o) => o.name === `${g.codigo}.mp4`); }
 
 
     // Espacio de vídeos en Supabase (plan gratuito: 1 GB). Aviso a partir del 85 %.
@@ -683,6 +700,23 @@
         const url = await signedUrlDescarga(ruta.replace(/\.mp4$/i, ''));
         if (url) window.open(url, '_blank');
         return;
+      } else if (accion === 'archivar_video' || accion === 'archivar_todos') {
+        const verdes = guiones.filter((g) => videosLib.some((v) => v.name === g.codigo + '.mp4') && estadoVideo(g).color === 'verde');
+        const lista = accion === 'archivar_video' ? verdes.filter((g) => g.codigo + '.mp4' === ruta) : verdes;
+        if (!lista.length) { avisar('No hay vídeos publicados en las 4 redes para quitar.'); return; }
+        const quien = lista.length === 1 ? `el vídeo ${lista[0].codigo}` : `${lista.length} vídeos (${lista.slice(0, 6).map((g) => g.codigo).join(', ')}${lista.length > 6 ? '…' : ''})`;
+        if (!confirm(`Vas a borrar de Supabase ${quien}.\n\nLa ficha, las redes y el calendario se quedan en el panel, pero el archivo de vídeo NO se puede recuperar desde aquí.\n\n¿Lo tienes guardado en tu ordenador?`)) return;
+        let hechos = 0;
+        for (const g of lista) {
+          const { data, error } = await sb.storage.from(BUCKET_VIDEOS).remove([g.codigo + '.mp4']);
+          if (error || !data || !data.length) { avisar('No se pudo quitar ' + g.codigo + '.'); break; }
+          const { error: e2 } = await sb.from('guiones').update({ video_archivado: true }).eq('id', g.id);
+          if (e2) { avisar('Se quitó el archivo de ' + g.codigo + ' pero no se pudo anotar: ' + e2.message); break; }
+          g.video_archivado = true;
+          hechos++;
+        }
+        if (hechos) avisar(`Listo: ${hechos} vídeo(s) quitado(s) de Supabase. Siguen en el panel como archivados.`);
+        await cargarBiblioteca();
       } else if (accion === 'borrar_video') {
         if (!confirm(`¿Seguro que quieres eliminar el vídeo ${ruta} de la biblioteca?`)) return;
         const { data, error } = await sb.storage.from(BUCKET_VIDEOS).remove([ruta]);
@@ -734,6 +768,10 @@
       await cargarPendientes();
       await recargarPublicaciones();
       await cargarBiblioteca();
+      for (const g of guiones.filter((x) => x.video_archivado && videosLib.some((v) => v.name === x.codigo + '.mp4'))) {
+        const { error: e0 } = await sb.from('guiones').update({ video_archivado: false }).eq('id', g.id);
+        if (!e0) g.video_archivado = false;
+      }
       // Todo vídeo G-###.mp4 de la biblioteca sin ficha recibe una: aparece en Vídeos y en Guiones
       // como "no publicado" (pendiente de revisión), con las mismas opciones para publicarlo.
       const sinFicha = videosLib.map((v) => v.name.replace(/\.mp4$/i, '').toUpperCase())
@@ -785,7 +823,7 @@
     $('contenido').addEventListener('click', async (ev) => {
       const boton = ev.target.closest('button[data-accion]');
       if (!boton) return;
-      if (['subir_videos', 'ver_video', 'descargar_video', 'borrar_video'].includes(boton.dataset.accion)) {
+      if (['subir_videos', 'ver_video', 'descargar_video', 'borrar_video', 'archivar_video', 'archivar_todos'].includes(boton.dataset.accion)) {
         boton.disabled = true;
         try { await accionBiblioteca(boton.dataset.accion, boton); } finally { boton.disabled = false; }
         return;
