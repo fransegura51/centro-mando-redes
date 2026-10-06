@@ -76,6 +76,15 @@
     .enlace-boton { display: inline-block; text-decoration: none; text-align: center; padding: 10px 16px; border-radius: 10px; font-weight: 700; }
     .enlace-boton.principal { background: #2f7d5b; color: #fff; }
     .enlace-boton.secundario { background: #fff; color: #1f1b2e; border: 2px solid #d9d4e6; }
+    .kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(105px, 1fr)); gap: 8px; margin: 10px 0; }
+    .kpi { background: #fff; border-left: 5px solid; border-radius: 10px; padding: 8px 10px; display: flex; flex-direction: column; }
+    .kpi b { font-size: 1.4rem; } .kpi span { font-size: 0.78rem; color: #666; }
+    .fila-fam, .fila-mod { background: #fff; border-radius: 10px; padding: 10px 12px; margin: 8px 0; display: flex; flex-direction: column; gap: 6px; }
+    .fam-datos, .mod-texto { display: flex; flex-direction: column; gap: 2px; }
+    .fam-datos small, .mod-texto small { color: #666; line-height: 1.35; }
+    .mod-cols { display: flex; gap: 8px; flex-wrap: wrap; }
+    .form-fam { display: flex; flex-direction: column; gap: 6px; padding: 8px 4px; }
+    .form-fam input { padding: 10px; border: 1px solid #ccc; border-radius: 8px; font-size: 1rem; }
     .resumen-redes { margin-bottom: 12px; }
     .total-redes { background: #1f1b2e; color: #fff; border-radius: 14px; padding: 14px 18px; display: flex; justify-content: space-between; align-items: center; }
     .total-redes b { font-size: 1.9rem; }
@@ -178,6 +187,9 @@
     let ideasViral = []; // ideas y tendencias del investigador
     let statsDia = []; // total de visualizaciones por día y red
     let analisisApp = []; // análisis de la app frente a la competencia
+    let familias = []; // familias que tienen la app
+    let planesF = []; // qué módulos son gratis o de pago
+    let appResumen = []; // cifras sueltas de la app
     let pendientes = 0; // peticiones de guiones sin atender
     let editando = null; // id del guion en edición
 
@@ -617,6 +629,82 @@
         ${bloque('consejo', '🏆', 'Consejos para ser los mejores', true)}`;
     }
 
+
+    // ---- Familias: quién tiene la app y qué módulos son gratis o de pago ----
+    const NOMBRE_PLAN = { gratis: '🆓 Gratis', prueba: '🧪 Prueba', premium: '⭐ De pago' };
+    const SIGUIENTE_PLAN = { gratis: 'premium', premium: 'prueba', prueba: 'gratis' };
+
+    function htmlFamilias() {
+      const reales = familias.filter((f) => !f.es_prueba);
+      const pruebas = familias.length - reales.length;
+      const total = reales.length;
+      const hoy = Date.now();
+      const rs = (k) => { const x = appResumen.find((a) => a.clave === k); return x ? x.valor : 0; };
+      const dias = (f) => (f ? (hoy - new Date(f + 'T12:00:00').getTime()) / 86400000 : 9999);
+      const n = (plan) => reales.filter((f) => f.plan === plan).length;
+      const activas = reales.filter((f) => dias(f.ultimo_uso) <= 30).length;
+      const nuevas = reales.filter((f) => dias(f.alta) <= 7).length;
+      const personas = reales.reduce((a, f) => a + (f.miembros || 0), 0);
+      const kpi = (num, txt, color) => `<div class="kpi" style="border-color:${color}"><b>${numES(num)}</b><span>${txt}</span></div>`;
+      const filas = familias.map((f) => `<div class="fila-fam" data-fam="${f.id}">
+          <div class="fam-datos"><b>${escapar(f.nombre)}</b><small>${f.es_prueba ? '🧪 Pruebas · ' : ''}${f.email ? escapar(f.email) + ' · ' : ''}${f.miembros} persona${f.miembros === 1 ? '' : 's'} · alta ${new Date(f.alta + 'T12:00:00').toLocaleDateString('es-ES')}${f.ultimo_uso ? ' · último uso ' + new Date(f.ultimo_uso + 'T12:00:00').toLocaleDateString('es-ES') : ''}${f.origen ? ' · ' + escapar(f.origen) : ''}</small>${f.notas ? `<small>📝 ${escapar(f.notas)}</small>` : ''}</div>
+          <div class="acciones"><button class="secundario" data-accion="fam_plan" data-id-fam="${f.id}">${NOMBRE_PLAN[f.plan]} → ${NOMBRE_PLAN[SIGUIENTE_PLAN[f.plan]]}</button>
+            <button class="secundario" data-accion="fam_borrar" data-id-fam="${f.id}">Quitar</button></div></div>`).join('');
+      const modulos = planesF.map((m) => `<div class="fila-mod">
+          <div class="mod-texto"><b>${m.icono || ''} ${escapar(m.modulo)}</b><small>${escapar(m.descripcion || '')}${m.limite_gratis ? ' · <i>Gratis: ' + escapar(m.limite_gratis) + '</i>' : ''}</small></div>
+          <div class="mod-cols"><button class="chip ${m.gratis ? 'verde' : 'gris'}" data-accion="plan_mod" data-modulo="${escapar(m.modulo)}" data-col="gratis">${m.gratis ? '✔' : '○'} Gratis</button>
+            <button class="chip ${m.premium ? 'amarillo' : 'gris'}" data-accion="plan_mod" data-modulo="${escapar(m.modulo)}" data-col="premium">${m.premium ? '✔' : '○'} De pago</button></div></div>`).join('');
+      const nGratis = planesF.filter((m) => m.gratis).length;
+      return `<div class="resumen-redes"><div class="total-redes"><span>Familias con PEPA (de clientes)</span><b>${numES(total)}</b></div>
+          <p class="ayuda-chips">Además hay ${pruebas} familias internas de pruebas y demo (no cuentan). ${numES(rs('interesados_web'))} persona(s) en la lista de espera de la web · ${numES(rs('visitas_web'))} visitas a la web · ${numES(rs('cuentas_con_usuario'))} cuentas de usuario creadas · ${numES(rs('avisos_activados'))} móviles con avisos.</p>
+          <div class="kpis">${kpi(personas, 'personas en total', '#6c5ce7')}${kpi(n('gratis'), 'gratis', '#2f7d5b')}${kpi(n('premium'), 'de pago', '#e8a317')}${kpi(n('prueba'), 'en prueba', '#1877f2')}${kpi(activas, 'activas (30 días)', '#c13584')}${kpi(nuevas, 'nuevas (7 días)', '#e53935')}</div>
+          <p class="ayuda-chips">Bartolo importa las familias de la app cada día (solo nombre, número de personas y fechas; nada de datos privados).</p></div>
+        <h3 class="titulo-bloque">👨‍👩‍👧 Familias</h3>
+        <details class="carpeta verde"><summary><span class="carpeta-icono">➕</span><span class="carpeta-nombre">Apuntar una familia a mano (solo si no está en la app)</span></summary>
+          <div class="form-fam">
+            <label for="fam-nombre">Nombre de la familia</label><input id="fam-nombre" placeholder="Familia García">
+            <label for="fam-email">Correo (opcional)</label><input id="fam-email" type="email" placeholder="correo@ejemplo.com">
+            <label for="fam-miembros">Personas</label><input id="fam-miembros" type="number" min="1" max="30" value="4" inputmode="numeric">
+            <label for="fam-origen">Cómo nos conoció (opcional)</label><input id="fam-origen" placeholder="TikTok, Instagram, web…">
+            <div class="acciones"><button class="principal" data-accion="fam_add">Añadir familia</button></div>
+          </div></details>
+        <div class="lista-fam">${filas || '<p class="vacio">Todavía no hay familias apuntadas.</p>'}</div>
+        <h3 class="titulo-bloque">🧩 Qué lleva cada plan (${nGratis} módulos gratis de ${planesF.length})</h3>
+        <p class="ayuda-chips">Toca para marcar qué es gratis y qué es de pago. Propuesta inicial basada en el análisis de la competencia: gratis lo básico para organizar la casa; de pago lo que ahorra más tiempo.</p>
+        <div class="lista-mod">${modulos}</div>`;
+    }
+
+    async function accionFamilias(boton) {
+      const accion = boton.dataset.accion;
+      if (accion === 'fam_add') {
+        const nombre = ($('fam-nombre').value || '').trim();
+        if (!nombre) { avisar('Escribe el nombre de la familia.'); return; }
+        const fila = { nombre, email: ($('fam-email').value || '').trim() || null, miembros: parseInt($('fam-miembros').value, 10) || 1, origen: ($('fam-origen').value || '').trim() || null };
+        const { data, error } = await sb.from('familias').insert(fila).select().single();
+        if (error) { avisar('No se pudo guardar: ' + error.message); return; }
+        familias.unshift(data); avisar('');
+      } else if (accion === 'fam_plan') {
+        const f = familias.find((x) => x.id === boton.dataset.idFam); if (!f) return;
+        const nuevo = SIGUIENTE_PLAN[f.plan];
+        const { error } = await sb.from('familias').update({ plan: nuevo }).eq('id', f.id);
+        if (error) { avisar('No se pudo cambiar el plan: ' + error.message); return; }
+        f.plan = nuevo; avisar('');
+      } else if (accion === 'fam_borrar') {
+        const f = familias.find((x) => x.id === boton.dataset.idFam); if (!f) return;
+        if (!confirm(`¿Quitar a ${f.nombre} de la lista?`)) return;
+        const { error } = await sb.from('familias').delete().eq('id', f.id);
+        if (error) { avisar('No se pudo quitar: ' + error.message); return; }
+        familias = familias.filter((x) => x.id !== f.id); avisar('');
+      } else if (accion === 'plan_mod') {
+        const m = planesF.find((x) => x.modulo === boton.dataset.modulo); if (!m) return;
+        const col = boton.dataset.col; const nuevo = !m[col];
+        const { error } = await sb.from('planes_funciones').update({ [col]: nuevo }).eq('modulo', m.modulo);
+        if (error) { avisar('No se pudo guardar: ' + error.message); return; }
+        m[col] = nuevo; avisar('');
+      }
+      pintar();
+    }
+
     // Vistas: cada cosa en su pestaña para que la pantalla no sea una lista interminable.
     let vista = 'videos';
     try { vista = localStorage.getItem('cmr_vista') || 'videos'; } catch (e) { /* sin almacenamiento */ }
@@ -653,6 +741,7 @@
         ['redes', '📊 Redes'],
         ['web', '🌐 Web'],
         ['app', '📱 App'],
+        ['familias', '👨‍👩‍👧 Familias'],
         ['pedir', 'Pedir guiones'],
       ];
       return `<div class="pestanas">${tabs.map(([k, n]) =>
@@ -665,6 +754,7 @@
       else if (vista === 'redes') cuerpo = htmlRedes();
       else if (vista === 'web') cuerpo = htmlWeb();
       else if (vista === 'app') cuerpo = htmlApp();
+      else if (vista === 'familias') cuerpo = htmlFamilias();
       else if (vista === 'pedir') cuerpo = htmlPeticion();
       else if (vista === 'guiones' || vista === 'sin_crear') {
         const sinCrear = vista === 'sin_crear';
@@ -859,18 +949,24 @@
         }
       }
       try {
-        const [r1, r2, r3, r4, r5] = await Promise.all([
+        const [r1, r2, r3, r4, r5, r6, r7, r8] = await Promise.all([
           sb.from('estadisticas_resumen').select('*'),
           sb.from('estadisticas_videos').select('*').order('vistas', { ascending: false }).limit(500),
           sb.from('ideas_virales').select('*').order('fecha', { ascending: false }).order('id', { ascending: true }).limit(60),
           sb.from('estadisticas_diarias').select('*').order('fecha', { ascending: false }).limit(240),
           sb.from('analisis_app').select('*').order('orden', { ascending: true }),
+          sb.from('familias').select('*').order('alta', { ascending: false }),
+          sb.from('planes_funciones').select('*').order('orden', { ascending: true }),
+          sb.from('app_resumen').select('*'),
         ]);
         statsRes = r1.data || [];
         statsVid = r2.data || [];
         ideasViral = r3.data || [];
         statsDia = r4.data || [];
         analisisApp = r5.data || [];
+        familias = r6.data || [];
+        planesF = r7.data || [];
+        appResumen = r8.data || [];
       } catch (e) { /* sin estadísticas todavía */ }
       pintar();
     }
@@ -928,6 +1024,7 @@
         pintar();
         return;
       }
+      if (['fam_add', 'fam_plan', 'fam_borrar', 'plan_mod'].includes(boton.dataset.accion)) { await accionFamilias(boton); return; }
       if (boton.dataset.accion === 'ocultar_video') {
         // Esconde o muestra el reproductor de esta tarjeta (al esconderlo, se para).
         const vid = boton.closest('[data-id]').querySelector('video.reproductor');
