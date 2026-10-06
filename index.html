@@ -290,9 +290,8 @@
       }
       sb.auth.onAuthStateChange((_evento, sesion) => {
         if (sesion) {
-          $('usuario-actual').textContent = sesion.user.email;
-          mostrar('resumen');
-          cargarResumen();
+          // Ya no hay pantalla de resumen: con sesión se entra directo al panel de Producción.
+          location.replace('produccion.html');
         } else {
           mostrar('login');
         }
