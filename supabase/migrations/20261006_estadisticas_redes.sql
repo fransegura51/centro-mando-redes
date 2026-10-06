@@ -1,0 +1,3 @@
+-- Estadísticas de redes, histórico diario e ideas del investigador (pestaña "Redes" del panel).
+-- Aplicado con el conector de Supabase el 2026-10-06; se deja aquí como registro.
+-- Tablas: estadisticas_videos, estadisticas_resumen, estadisticas_diarias, ideas_virales (solo lectura para el panel).

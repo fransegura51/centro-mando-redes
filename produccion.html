@@ -66,6 +66,25 @@
     video.reproductor { width: 100%; max-height: 70vh; background: #000; border-radius: 8px; margin-top: 8px; }
     .pub { font-size: 0.85rem; margin-top: 4px; }
     .pub .error { color: var(--error); }
+    .tabla-dia { overflow-x: auto; background: #fff; border-radius: 10px; }
+    .tabla-dia table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+    .tabla-dia th, .tabla-dia td { padding: 6px 8px; text-align: right; border-bottom: 1px solid #eee; white-space: nowrap; }
+    .tabla-dia th:first-child, .tabla-dia td:first-child { text-align: left; }
+    .sube { color: #1b873f; } .baja { color: #c62828; }
+    .resumen-redes { margin-bottom: 12px; }
+    .total-redes { background: #1f1b2e; color: #fff; border-radius: 14px; padding: 14px 18px; display: flex; justify-content: space-between; align-items: center; }
+    .total-redes b { font-size: 1.9rem; }
+    .mini-redes { display: flex; flex-wrap: wrap; gap: 8px; margin: 10px 0; }
+    .mini-redes span { border: 2px solid; border-radius: 999px; padding: 4px 12px; font-weight: 700; background: #fff; }
+    .titulo-bloque { margin: 16px 0 8px; font-size: 1.05rem; }
+    .rank { display: flex; flex-direction: column; gap: 6px; margin-top: 8px; }
+    .fila-rank { display: flex; gap: 8px; align-items: flex-start; background: #fff; border-radius: 10px; padding: 8px 10px; }
+    .rank-n { font-weight: 700; min-width: 22px; color: #777; }
+    .rank-t { flex: 1; font-size: 0.92rem; }
+    .rank-barra { display: block; height: 6px; background: #eee; border-radius: 4px; margin-top: 4px; overflow: hidden; }
+    .rank-barra i { display: block; height: 100%; border-radius: 4px; }
+    .rank-v { font-weight: 700; white-space: nowrap; }
+    .conclusiones p { background: #fff; border-radius: 10px; padding: 8px 12px; margin: 8px 0; font-size: 0.93rem; line-height: 1.45; }
     .leyenda { font-size: 0.9rem; margin-bottom: 12px; line-height: 1.8; }
     details.carpeta { margin: 14px 0; border-radius: 14px; padding: 4px 12px 12px; border: 3px solid; }
     details.carpeta > summary { display: flex; align-items: center; gap: 10px; list-style: none; cursor: pointer;
@@ -149,6 +168,10 @@
     let publicaciones = [];
     let videosLib = []; // vídeos de la biblioteca (bucket privado)
     let guiones = [];
+    let statsRes = []; // estadísticas por red (resumen)
+    let statsVid = []; // estadísticas por vídeo
+    let ideasViral = []; // ideas y tendencias del investigador
+    let statsDia = []; // total de visualizaciones por día y red
     let pendientes = 0; // peticiones de guiones sin atender
     let editando = null; // id del guion en edición
 
@@ -428,6 +451,86 @@
         ${bloques || '<p class="vacio">No hay nada en el calendario. Programa un vídeo desde "Revisar vídeo".</p>'}`;
     }
 
+
+    // ---- Redes: estadísticas, tendencias e ideas para hacer un vídeo viral ----
+    const REDES_INFO = {
+      youtube: { icono: '▶️', nombre: 'YouTube', color: '#e53935' },
+      instagram: { icono: '📸', nombre: 'Instagram', color: '#c13584' },
+      facebook: { icono: '👍', nombre: 'Facebook', color: '#1877f2' },
+      tiktok: { icono: '🎵', nombre: 'TikTok', color: '#111' },
+      todas: { icono: '🌐', nombre: 'Todas', color: '#6c5ce7' },
+    };
+    const numES = (n) => (n == null ? '—' : Number(n).toLocaleString('es-ES'));
+
+    function htmlIdeas() {
+      if (!ideasViral.length) return '';
+      const dia = ideasViral[0].fecha;
+      const delDia = ideasViral.filter((i) => i.fecha === dia);
+      const tipos = [['tendencia', '🔥', 'Tendencias del día'], ['idea', '💡', 'Ideas de vídeo para hacerse virales'], ['consejo', '🧭', 'Consejos del investigador']];
+      const bloques = tipos.map(([t, ic, tit]) => {
+        const items = delDia.filter((i) => i.tipo === t);
+        if (!items.length) return '';
+        return `<details class="carpeta verde" ${t === 'idea' ? 'open' : ''}>
+          <summary><span class="carpeta-icono">${ic}</span><span class="carpeta-nombre">${tit}</span><span class="carpeta-num">${items.length}</span></summary>
+          <div class="conclusiones">${items.map((i) => `<p><b>${(REDES_INFO[i.plataforma] || REDES_INFO.todas).icono} ${escapar(i.titulo)}</b><br>${escapar(i.detalle)}${i.fuente ? `<br><small>Fuente: ${escapar(i.fuente)}</small>` : ''}</p>`).join('')}</div>
+        </details>`;
+      }).join('');
+      return `<h3 class="titulo-bloque">🕵️ Investigador y consejero · ${new Date(dia + 'T12:00:00').toLocaleDateString('es-ES')}</h3>${bloques}`;
+    }
+
+
+    function htmlDiario() {
+      if (!statsDia.length) return '';
+      const dias = [...new Set(statsDia.map((d) => d.fecha))].sort().reverse().slice(0, 14);
+      const orden = ['youtube', 'instagram', 'facebook', 'tiktok'];
+      const val = (f, k) => { const x = statsDia.find((d) => d.fecha === f && d.plataforma === k); return x ? x.vistas_total : null; };
+      const tot = (f) => orden.reduce((a, k) => a + (val(f, k) || 0), 0);
+      const filas = dias.map((f, i) => {
+        const prev = dias[i + 1];
+        const dif = prev ? tot(f) - tot(prev) : null;
+        return `<tr><td>${new Date(f + 'T12:00:00').toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit' })}</td>
+          ${orden.map((k) => `<td>${numES(val(f, k))}</td>`).join('')}
+          <td><b>${numES(tot(f))}</b>${dif == null ? '' : `<br><small class="${dif >= 0 ? 'sube' : 'baja'}">${dif >= 0 ? '▲ +' : '▼ '}${numES(dif)}</small>`}</td></tr>`;
+      }).join('');
+      return `<h3 class="titulo-bloque">📅 Visualizaciones totales cada día</h3>
+        <div class="tabla-dia"><table><thead><tr><th>Día</th>${orden.map((k) => `<th>${REDES_INFO[k].icono}</th>`).join('')}<th>Total</th></tr></thead><tbody>${filas}</tbody></table></div>
+        <p class="ayuda-chips">Cada día Bartolo apunta aquí el total de cada red. Facebook cuenta los últimos 28 días.</p>`;
+    }
+
+    function htmlRedes() {
+      if (!statsRes.length) return htmlIdeas() + '<p class="vacio">Aún no hay estadísticas. Dile a Bartolo: «actualiza las estadísticas de las redes».</p>';
+      const total = statsRes.reduce((a, r) => a + (r.vistas_total || 0), 0);
+      const fecha = statsRes[0].capturado_en ? new Date(statsRes[0].capturado_en).toLocaleDateString('es-ES') : '';
+      const orden = ['instagram', 'youtube', 'facebook', 'tiktok'];
+      const tarjetas = orden.map((k) => {
+        const r = statsRes.find((x) => x.plataforma === k); if (!r) return '';
+        const info = REDES_INFO[k];
+        const vids = statsVid.filter((v) => v.plataforma === k);
+        const media = vids.length ? Math.round(vids.reduce((a, v) => a + v.vistas, 0) / vids.length) : null;
+        const maxV = vids.length ? vids[0].vistas : 1;
+        const pct = total ? Math.round((r.vistas_total / total) * 100) : 0;
+        const fila = (v, i) => `
+          <div class="fila-rank"><span class="rank-n">${i + 1}</span>
+            <span class="rank-t">${escapar(v.titulo)}<span class="rank-barra"><i style="width:${Math.max(3, Math.round(v.vistas / maxV * 100))}%;background:${info.color}"></i></span></span>
+            <span class="rank-v">${numES(v.vistas)}</span></div>`;
+        return `<details class="carpeta amarillo">
+          <summary><span class="carpeta-icono">${info.icono}</span><span class="carpeta-nombre">${info.nombre}</span>
+            <span class="carpeta-num">${numES(r.vistas_total)}</span></summary>
+          <div class="carpeta-ayuda">${escapar(r.periodo || '')} · ${pct} % del total${r.publicaciones ? ' · ' + r.publicaciones + ' vídeos' : ''}${media ? ' · media ' + numES(media) + ' por vídeo' : ''}${r.seguidores ? ' · ' + numES(r.seguidores) + ' seguidores' : ''}</div>
+          ${r.nota ? `<p class="ayuda-chips">${escapar(r.nota)}</p>` : ''}
+          <div class="rank">${vids.slice(0, 10).map(fila).join('') || '<p class="vacio">Sin vídeos.</p>'}</div>
+          ${vids.length > 10 ? `<details><summary>Ver los ${vids.length} vídeos</summary><div class="rank">${vids.slice(10).map((v, i) => fila(v, i + 10)).join('')}</div></details>` : ''}
+        </details>`;
+      }).join('');
+      return `<div class="resumen-redes"><div class="total-redes"><span>Visualizaciones en total</span><b>${numES(total)}</b></div>
+          <div class="mini-redes">${orden.map((k) => { const r = statsRes.find((x) => x.plataforma === k); return r ? `<span style="border-color:${REDES_INFO[k].color}">${REDES_INFO[k].icono} ${numES(r.vistas_total)}</span>` : ''; }).join('')}</div>
+          <p class="ayuda-chips">Datos del ${fecha}. Facebook solo cuenta los últimos 28 días. Bartolo los actualiza cada día.</p></div>
+        ${htmlDiario()}
+        ${htmlIdeas()}
+        <h3 class="titulo-bloque">📊 Estadísticas por red</h3>
+        ${tarjetas}`;
+    }
+
     // Vistas: cada cosa en su pestaña para que la pantalla no sea una lista interminable.
     let vista = 'videos';
     try { vista = localStorage.getItem('cmr_vista') || 'videos'; } catch (e) { /* sin almacenamiento */ }
@@ -444,6 +547,7 @@
         ['calendario', `Calendario${nCal ? ` (${nCal})` : ''}`],
         ['guiones', `Guiones creados (${nCre})`],
         ['sin_crear', `Guiones sin crear (${nSin})`],
+        ['redes', '📊 Redes'],
         ['pedir', 'Pedir guiones'],
       ];
       return `<div class="pestanas">${tabs.map(([k, n]) =>
@@ -453,6 +557,7 @@
     function pintar() {
       let cuerpo;
       if (vista === 'calendario') cuerpo = htmlCalendario();
+      else if (vista === 'redes') cuerpo = htmlRedes();
       else if (vista === 'pedir') cuerpo = htmlPeticion();
       else if (vista === 'guiones' || vista === 'sin_crear') {
         const sinCrear = vista === 'sin_crear';
@@ -625,6 +730,18 @@
           if (gs2) guiones = gs2;
         }
       }
+      try {
+        const [r1, r2, r3, r4] = await Promise.all([
+          sb.from('estadisticas_resumen').select('*'),
+          sb.from('estadisticas_videos').select('*').order('vistas', { ascending: false }).limit(500),
+          sb.from('ideas_virales').select('*').order('fecha', { ascending: false }).order('id', { ascending: true }).limit(60),
+          sb.from('estadisticas_diarias').select('*').order('fecha', { ascending: false }).limit(240),
+        ]);
+        statsRes = r1.data || [];
+        statsVid = r2.data || [];
+        ideasViral = r3.data || [];
+        statsDia = r4.data || [];
+      } catch (e) { /* sin estadísticas todavía */ }
       pintar();
     }
 
