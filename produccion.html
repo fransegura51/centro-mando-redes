@@ -110,6 +110,7 @@
     .carpeta-ayuda { font-size: 0.85rem; color: var(--suave); margin: 0 0 10px; }
     details.carpeta.amarillo { background: #fef9c3; border-color: #eab308; }
     details.carpeta.verde { background: #dcfce7; border-color: #22c55e; }
+    details.carpeta.medias { background: #ffedd5; border-color: #f97316; }
     details.carpeta.rojo { background: #fee2e2; border-color: #ef4444; }
     details.carpeta.gris { background: #f3f4f6; border-color: #9ca3af; }
     .tarjeta.video { border-left-width: 8px; }
@@ -782,18 +783,22 @@
       else if (vista === 'guiones' || vista === 'sin_crear') {
         const sinCrear = vista === 'sin_crear';
         const carp = {
-          amarillo: { icono: '🟡', nombre: 'No publicados', ayuda: 'En preparación, pendientes o publicados solo en algunas redes', items: [] },
+          amarillo: { icono: '🟡', nombre: 'No publicados', ayuda: 'En preparación o pendientes: todavía no han salido en ninguna red', items: [] },
+          medias: { icono: '🟠', nombre: 'Publicados, faltan redes', ayuda: 'Ya salieron en alguna red pero faltan otras. Cuando estén en las 4 pasan solos a la tarjeta verde', items: [] },
           verde: { icono: '🟢', nombre: 'Publicados en las 4 redes', ayuda: 'Terminados', items: [] },
           gris: { icono: '⚪', nombre: 'Rechazados', ayuda: 'Descartados', items: [] },
         };
         [...guiones].filter((g) => tieneVideo(g) !== sinCrear).sort((a, b) => b.codigo.localeCompare(a.codigo)).forEach((g) => {
-          const k = g.estado === 'rechazado' ? 'gris' : (estadoVideo(g).color === 'verde' ? 'verde' : 'amarillo');
-          carp[k].items.push(htmlTarjeta(g));
+          const ev = estadoVideo(g);
+          const hechas = ev.redes.filter(([, c]) => c === 'verde').length;
+          const k = g.estado === 'rechazado' ? 'gris' : (ev.color === 'verde' ? 'verde' : hechas ? 'medias' : 'amarillo');
+          if (k === 'medias') { const f = ev.redes.filter(([, c]) => c !== 'verde').map(([r]) => r); carp[k].items.push(htmlTarjeta(g).replace('</article>', `<div class="aviso-manual">⏳ Falta en: ${escapar(nombresRedes(f))}</div></article>`)); }
+          else carp[k].items.push(htmlTarjeta(g));
         });
         cuerpo = (sinCrear ? '<div class="leyenda">Guiones que aún no tienen vídeo. Cuando se suba el vídeo pasan solos a "Guiones creados".</div>'
-          : '<div class="leyenda">🟢 Publicado en las 4 redes &nbsp; 🟡 No publicado o a medias</div>')
-          + (['amarillo', 'verde', 'gris'].filter((k) => carp[k].items.length).map((k) =>
-            `<details class="carpeta ${k}" ${k === 'amarillo' ? 'open' : ''}>
+          : '<div class="leyenda">🟢 Publicado en las 4 redes &nbsp; 🟠 Publicado, faltan redes &nbsp; 🟡 Sin publicar</div>')
+          + (['amarillo', 'medias', 'verde', 'gris'].filter((k) => carp[k].items.length).map((k) =>
+            `<details class="carpeta ${k}" ${k === 'amarillo' || k === 'medias' ? 'open' : ''}>
               <summary><span class="carpeta-icono">${carp[k].icono}</span><span class="carpeta-nombre">${carp[k].nombre}</span>
                 <span class="carpeta-num">${carp[k].items.length}</span></summary>
               <div class="carpeta-ayuda">${carp[k].ayuda}</div>
