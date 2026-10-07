@@ -176,9 +176,11 @@
     const BUCKET_VIDEOS = 'videos-editados';
     // Redes que se publican a mano (el panel deja el paquete listo). Para automatizar una
     // red más adelante, quítala de MANUALES y la función `publicar` la hará sola.
-    const MANUALES = ['instagram', 'facebook', 'tiktok'];
-    const PLATAFORMAS = [['youtube', 'YouTube (automático)'], ['instagram', 'Instagram (lo sube el agente de Claude)'], ['facebook', 'Facebook (lo subes tú desde el móvil, te dejo todo listo)'], ['tiktok', 'TikTok (lo subes tú, te dejo todo listo)']];
-    const NOMBRE_PLAT = { youtube: 'YouTube', instagram: 'Instagram', facebook: 'Facebook', tiktok: 'TikTok' };
+    const MANUALES = ['instagram', 'facebook', 'tiktok', 'whatsapp', 'telegram'];
+    // WhatsApp y Telegram son opcionales (no cuentan para «publicado en todas»): se marcan a mano, ~1 cada 2 días.
+    const PLATAFORMAS = [['youtube', 'YouTube (automático)'], ['instagram', 'Instagram (lo sube el agente de Claude)'], ['facebook', 'Facebook (lo subes tú desde el móvil, te dejo todo listo)'], ['tiktok', 'TikTok (lo subes tú, te dejo todo listo)'], ['whatsapp', 'WhatsApp (canal Pepa Family; lo sube el agente, con etiqueta de IA)'], ['telegram', 'Telegram (canal Pepa family; uno cada dos días aprox.)']];
+    const OPCIONALES = ['whatsapp', 'telegram'];
+    const NOMBRE_PLAT = { youtube: 'YouTube', instagram: 'Instagram', facebook: 'Facebook', tiktok: 'TikTok', whatsapp: 'WhatsApp', telegram: 'Telegram' };
     const NOMBRE_PUB = { pendiente: 'programado', publicando: 'publicando…', publicado: 'publicado', error: 'con error', manual: 'a la espera de que lo suba el agente (o tú a mano)' };
     let publicaciones = [];
     let videosLib = []; // vídeos de la biblioteca (bucket privado)
@@ -227,7 +229,7 @@
 
     function htmlRevision(g) {
       const redes = PLATAFORMAS.map(([k, n]) =>
-        `<label class="check"><input type="checkbox" data-plataforma="${k}" checked> ${n}</label>`).join('');
+        `<label class="check"><input type="checkbox" data-plataforma="${k}"${OPCIONALES.includes(k) ? '' : ' checked'}> ${n}</label>`).join('');
       return `<div class="acciones"><button class="secundario" data-accion="ocultar_video">▲ Esconder vídeo</button></div>
         <video class="reproductor" data-ruta="${escapar(g.codigo)}.mp4" controls playsinline preload="metadata"></video>
         <label>Fecha y hora de publicación (la eliges tú; no se publica nada sin ella)</label>

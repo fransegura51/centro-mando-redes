@@ -14,3 +14,5 @@ pepo-ventas/correo/.env
 pepo-ventas/correo/estado.json
 pepo-ventas/correo/ENVIO_ACTIVADO
 pepo-ventas/contactos/
+pepo-ventas/telegram/.env
+pepo-ventas/telegram/estado.json
