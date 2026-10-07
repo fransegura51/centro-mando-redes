@@ -347,7 +347,7 @@
 
     function estadoVideo(g) {
       const mias = publicaciones.filter((p) => p.guion_id === g.id);
-      const redes = ORDEN_REDES.map((r) => {
+      const redes = ORDEN_REDES.concat(OPCIONALES).map((r) => {
         const p = mias.filter((x) => x.plataforma === r);
         let e = 'gris';
         if (p.some((x) => x.estado === 'publicado')) e = 'verde';
@@ -355,7 +355,7 @@
         else if (p.length) e = 'amarillo';
         return [r, e];
       });
-      const faltan = redes.filter(([, e]) => e !== 'verde').map(([r]) => r);
+      const faltan = redes.filter(([r, e]) => !OPCIONALES.includes(r) && e !== 'verde').map(([r]) => r);
       const faltanAuto = faltan.filter((r) => !LAS_SUBES_TU.includes(r));
       const faltanTu = faltan.filter((r) => LAS_SUBES_TU.includes(r));
       let color = 'amarillo';
