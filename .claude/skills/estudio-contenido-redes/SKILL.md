@@ -91,8 +91,9 @@ primer lote de 7 guiones directamente en la tabla (SQL o script).
 3. Subtítulos: **opcional**. Solo si el PC los aguanta con Whisper local
    gratuito; si no, omitirlos y confiar en los subtítulos automáticos de
    cada plataforma.
-4. Sube el resultado a Supabase Storage (bucket privado), actualiza el
-   guion a `pendiente_revision`.
+4. NO sube el vídeo a Supabase Storage (regla del usuario, 2026-10-08, por el límite de
+   tráfico de salida): se queda en `videos\editados`. Solo actualiza el guion a
+   `pendiente_revision`. Subir solo con `SUBIR_VIDEOS=1` en `.env`.
 5. **Plan Free = 1 GB de Storage**: borrar el vídeo de Storage a los 7 días
    de publicarse (conservar el original en el PC). Avisar si el uso pasa del
    70 %.

@@ -59,16 +59,21 @@ function editar(entrada, salida) {
   return true;
 }
 
+// Por defecto el vídeo NO se sube a Supabase (el tráfico de salida del plan gratuito se agotó):
+// se queda en videos\editados y solo se marca el guion como pendiente de revisión.
+// Para subirlo igualmente: poner SUBIR_VIDEOS=1 en .env.
 async function subir(env, base, codigo, ruta) {
   const clave = env.SUPABASE_SERVICE_ROLE_KEY;
   const cab = { apikey: clave, Authorization: 'Bearer ' + clave };
-  const cuerpo = fs.readFileSync(ruta);
-  const r1 = await fetch(`${base}/storage/v1/object/${BUCKET}/${codigo}.mp4`, {
-    method: 'POST',
-    headers: { ...cab, 'Content-Type': 'video/mp4', 'x-upsert': 'true' },
-    body: cuerpo,
-  });
-  if (!r1.ok) throw new Error('subida: ' + r1.status + ' ' + (await r1.text()).slice(0, 200));
+  if (env.SUBIR_VIDEOS === '1') {
+    const cuerpo = fs.readFileSync(ruta);
+    const r1 = await fetch(`${base}/storage/v1/object/${BUCKET}/${codigo}.mp4`, {
+      method: 'POST',
+      headers: { ...cab, 'Content-Type': 'video/mp4', 'x-upsert': 'true' },
+      body: cuerpo,
+    });
+    if (!r1.ok) throw new Error('subida: ' + r1.status + ' ' + (await r1.text()).slice(0, 200));
+  }
   const r2 = await fetch(`${base}/rest/v1/guiones?codigo=eq.${codigo}`, {
     method: 'PATCH',
     headers: { ...cab, 'Content-Type': 'application/json', Prefer: 'return=representation' },
@@ -107,7 +112,9 @@ async function subir(env, base, codigo, ruta) {
     if (puedeSubir) {
       try {
         await subir(env, base, codigo, salida);
-        console.log(`${codigo}: subido y pendiente de revisión en el panel.`);
+        console.log(env.SUBIR_VIDEOS === '1'
+          ? `${codigo}: subido y pendiente de revisión en el panel.`
+          : `${codigo}: se queda en tu ordenador (videos\\editados) y queda pendiente de revisión en el panel.`);
       } catch (e) {
         console.log(`${codigo}: NO se pudo subir (${e.message}). El original se queda en entrada.`);
         continue;

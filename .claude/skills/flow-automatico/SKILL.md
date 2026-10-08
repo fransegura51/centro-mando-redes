@@ -139,8 +139,9 @@ con 1 guion mientras el usuario mira. Ajustar `flow-mapa.md`.
 
 Además de `videos\entrada\G-###.mp4`, dejar SIEMPRE una copia en
 `C:\Users\Usuario\Documents\Vídeos cloud` (carpeta fijada en el Acceso rápido del
-Explorador), y subirlo a la Biblioteca de vídeos del panel (subida con el cuadro de
-archivo del panel y la herramienta de subida del navegador). Decir al usuario la ruta
+Explorador). **NO subir vídeos a la Biblioteca del panel ni a Supabase** (regla del
+usuario, 2026-10-08: el tráfico de salida del plan gratuito se agotó): los vídeos viven
+solo en el ordenador. Decir al usuario la ruta
 exacta y abrirle el Explorador con el fichero seleccionado. El usuario a veces mueve los
 vídeos por su cuenta (p. ej. a `Escritorio\Family App PEPA\videos terminados pepa`):
 buscar ahí antes de decir que falta.
