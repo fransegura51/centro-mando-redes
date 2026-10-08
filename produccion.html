@@ -231,7 +231,7 @@
       const redes = PLATAFORMAS.map(([k, n]) =>
         `<label class="check"><input type="checkbox" data-plataforma="${k}"${OPCIONALES.includes(k) ? '' : ' checked'}> ${n}</label>`).join('');
       return `<div class="acciones"><button class="secundario" data-accion="ocultar_video">▲ Esconder vídeo</button></div>
-        <video class="reproductor" data-ruta="${escapar(g.codigo)}.mp4" controls playsinline preload="metadata"></video>
+        <video class="reproductor" data-ruta="${escapar(g.codigo)}.mp4" controls playsinline preload="none"></video>
         <label>Fecha y hora de publicación (la eliges tú; no se publica nada sin ella)</label>
         <input type="datetime-local" data-campo="fecha">
         <label>Dónde</label>${redes}`;
@@ -754,7 +754,7 @@
       if (pct >= 85) {
         return `<div class="aviso-almacen alto">⚠️ El espacio de vídeos está al ${pct} % (${mb} MB de 1.024 MB). Cuando se llene no se podrán subir más vídeos. Borra vídeos antiguos ya publicados (los tienes en tu ordenador) o pide ayuda a Bartolo.</div>`;
       }
-      return siempre ? `<p class="ayuda-chips">💾 Espacio de vídeos: ${pct} % usado (${mb} MB de 1.024 MB del plan gratuito). Te avisaré aquí al llegar al 85 %.</p>` : '';
+      return siempre ? `<p class="ayuda-chips">💾 Espacio de vídeos: ${pct} % usado (${mb} MB de 1.024 MB del plan gratuito). Te avisaré aquí al llegar al 85 %. Ojo: esto es solo el espacio guardado; las descargas y reproducciones de vídeo tienen otro límite (5 GB al mes) que se mira en Supabase → Organization → Usage.</p>` : '';
     }
 
     function htmlPestanas() {
@@ -817,10 +817,16 @@
     }
 
     // Los vídeos están en un bucket privado: se reproducen con una URL firmada de 1 hora.
+    // La URL firmada se guarda 50 min: así cada repintado no pide otra distinta ni vuelve a bajar el vídeo
+    // (el tráfico de salida de Supabase es limitado). preload="none": no se descarga nada hasta dar al play.
+    const urlsVideo = new Map();
     async function cargarVideos() {
       for (const v of document.querySelectorAll('video[data-ruta]')) {
-        const { data } = await sb.storage.from(BUCKET_VIDEOS).createSignedUrl(v.dataset.ruta, 3600);
-        if (data && data.signedUrl) v.src = data.signedUrl;
+        const ruta = v.dataset.ruta;
+        const c = urlsVideo.get(ruta);
+        if (c && Date.now() - c.t < 50 * 60000) { v.src = c.url; continue; }
+        const { data } = await sb.storage.from(BUCKET_VIDEOS).createSignedUrl(ruta, 3600);
+        if (data && data.signedUrl) { urlsVideo.set(ruta, { url: data.signedUrl, t: Date.now() }); v.src = data.signedUrl; }
         else v.insertAdjacentHTML('afterend', '<p class="vacio">No se pudo cargar el vídeo.</p>');
       }
     }
