@@ -1,0 +1,324 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#111827">
+  <meta name="robots" content="noindex, nofollow">
+  <link rel="manifest" href="manifest.json">
+  <link rel="icon" type="image/svg+xml" href="icon.svg">
+  <link rel="apple-touch-icon" href="icon-180.png">
+  <title>PEPA — Centro de Mando Redes</title>
+  <style>
+    :root {
+      --fondo: #f3f4f6; --tarjeta: #ffffff; --texto: #111827; --suave: #6b7280;
+      --borde: #e5e7eb; --primario: #2563eb; --error: #b91c1c; --error-fondo: #fee2e2;
+      --ok: #15803d; --aviso: #b45309; --pepa: #12a594;
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+      background: var(--fondo); color: var(--texto); font-size: 16px; }
+    header { background: #111827; color: #fff; padding: 14px 16px; display: flex;
+      justify-content: space-between; align-items: center; }
+    header h1 { margin: 0; font-size: 1.1rem; font-weight: 600; }
+    header a { color: #fff; font-size: 0.85rem; text-decoration: none; border: 1px solid #4b5563;
+      border-radius: 6px; padding: 6px 10px; margin-right: 8px; }
+    header button { background: transparent; color: #fff; border: 1px solid #4b5563;
+      border-radius: 6px; padding: 6px 10px; font-size: 0.85rem; }
+    main { padding: 16px; max-width: 900px; margin: 0 auto; }
+    [hidden] { display: none !important; }
+    h2 { font-size: 1.05rem; margin: 22px 0 8px; }
+    .suave { color: var(--suave); font-size: 0.9rem; }
+
+    .login { max-width: 360px; margin: 48px auto; background: var(--tarjeta);
+      border: 1px solid var(--borde); border-radius: 10px; padding: 24px; }
+    .login h2 { margin: 0 0 6px; }
+    label { display: block; font-size: 0.9rem; color: var(--suave); margin: 12px 0 4px; }
+    input, select { width: 100%; padding: 12px; font-size: 1rem; border: 1px solid var(--borde); border-radius: 6px; background: #fff; }
+    .boton { width: 100%; margin-top: 18px; padding: 13px; font-size: 1rem; border: 0;
+      border-radius: 6px; background: var(--primario); color: #fff; cursor: pointer; }
+    .boton:disabled { opacity: 0.6; }
+    .mensaje-error { margin-top: 12px; padding: 10px; border-radius: 6px; background: var(--error-fondo); color: var(--error); font-size: 0.9rem; }
+
+    .resumen { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    @media (min-width: 640px) { .resumen { grid-template-columns: repeat(4, 1fr); } }
+    .dato { background: var(--tarjeta); border: 1px solid var(--borde); border-left: 5px solid var(--pepa); border-radius: 10px; padding: 12px 14px; }
+    .dato .valor { font-size: 1.6rem; font-weight: 600; line-height: 1.1; }
+    .dato .etiqueta { font-size: 0.78rem; color: var(--suave); }
+    .controles { display: flex; gap: 10px; flex-wrap: wrap; margin: 10px 0; }
+    .controles > div { flex: 1; min-width: 160px; }
+
+    details.cuenta { background: var(--tarjeta); border: 1px solid var(--borde); border-radius: 10px; padding: 10px 14px; margin: 8px 0; }
+    details.cuenta[data-inactiva="1"] { border-left: 5px solid var(--aviso); }
+    details.cuenta summary { cursor: pointer; display: flex; justify-content: space-between; gap: 10px; align-items: baseline; flex-wrap: wrap; }
+    details.cuenta .nombre { font-weight: 600; }
+    details.cuenta .resumen-linea { color: var(--suave); font-size: 0.85rem; }
+    details.cuenta .detalle { margin-top: 10px; border-top: 1px solid var(--borde); padding-top: 8px; font-size: 0.9rem; }
+    .barra-fila { display: grid; grid-template-columns: 130px 1fr 80px; gap: 8px; align-items: center; margin: 5px 0; font-size: 0.9rem; }
+    .barra { background: #e8edf5; border-radius: 6px; height: 10px; }
+    .barra > div { background: var(--pepa); height: 10px; border-radius: 6px; }
+    .barra-num { color: var(--suave); font-size: 0.8rem; text-align: right; }
+    .caja { background: var(--tarjeta); border: 1px solid var(--borde); border-radius: 10px; padding: 8px 14px; }
+    #cargando { text-align: center; color: var(--suave); }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>PEPA · uso de la app</h1>
+    <span>
+      <a href="index.html">Resumen</a>
+      <button id="btn-salir" hidden>Salir de PEPA</button>
+    </span>
+  </header>
+
+  <main>
+    <!-- Acceso a PEPA: la cuenta de propietaria de PEPA (distinta del acceso de este centro de mando). -->
+    <section id="pantalla-login" class="login" hidden>
+      <h2>Acceso a PEPA</h2>
+      <p class="suave">Entra con tu cuenta de propietaria de PEPA (la de la app). Solo se ven recuentos de uso, nunca los datos de las familias.</p>
+      <form id="form-login">
+        <label for="email">Correo</label>
+        <input id="email" type="email" autocomplete="username" required>
+        <label for="password">Contraseña</label>
+        <input id="password" type="password" autocomplete="current-password" required>
+        <button class="boton" id="btn-entrar" type="submit">Entrar</button>
+      </form>
+      <div id="login-error" class="mensaje-error" hidden></div>
+    </section>
+
+    <section id="pantalla-pepa" hidden>
+      <div id="aviso" class="mensaje-error" hidden></div>
+
+      <div class="resumen" id="resumen"></div>
+
+      <div class="controles">
+        <div>
+          <label for="periodo">Periodo</label>
+          <select id="periodo">
+            <option value="7">Últimos 7 días</option>
+            <option value="30" selected>Últimos 30 días</option>
+            <option value="90">Últimos 90 días</option>
+          </select>
+        </div>
+        <div>
+          <label for="orden">Orden de las cuentas</label>
+          <select id="orden">
+            <option value="menos">Las que menos la usan primero</option>
+            <option value="mas">Las que más la usan primero</option>
+            <option value="alta">Por fecha de alta (más recientes primero)</option>
+          </select>
+        </div>
+      </div>
+      <p class="suave" id="nota-registro"></p>
+
+      <h2>Cuentas (una línea por descarga)</h2>
+      <div id="cuentas"></div>
+
+      <h2>Pantallas más y menos usadas (todas las cuentas)</h2>
+      <div class="caja" id="ranking"></div>
+    </section>
+
+    <p id="cargando">Cargando…</p>
+  </main>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+  <script>
+    // Proyecto Supabase de PEPA (distinto del de este centro de mando). La clave es la «publishable» de PEPA: pública por diseño, igual que
+    // la que lleva la propia app; los datos los protegen las políticas y las funciones del servidor (solo propietarias de PEPA leen esto).
+    const PEPA_URL = 'https://objhgjgrinbhyzscjlbw.supabase.co';
+    const PEPA_KEY = 'sb_publishable_6vtkGOhBXOPyx_VzRfF4rw_RiuyIt1X';
+    const OPEN_KEY = '_abre';
+    // Mismas pantallas y nombres que src/domain/usageSections.ts de PEPA (copia a mano: si se añade una pantalla a PEPA, añadirla aquí).
+    const SECCIONES = {
+      inicio: 'Inicio', calendario: 'Calendario', eventos: 'Eventos', puntos: 'Puntos', compras: 'Compras', familia: 'Familia',
+      alimentacion: 'Alimentación', dinero: 'Dinero', ubicacion: 'Ubicación', actividad: 'Actividad', cumpleanos: 'Cumpleaños',
+      contactos: 'Contactos', galeria: 'Galería', documentos: 'Documentos', 'menu-organizar': 'Organizar menú', ayuda: 'Ayuda', sugerencias: 'Sugerencias',
+    };
+
+    const $ = (id) => document.getElementById(id);
+    const sb = window.supabase.createClient(PEPA_URL, PEPA_KEY, {
+      auth: { persistSession: true, autoRefreshToken: true, storageKey: 'cmr-pepa-auth' },
+    });
+
+    // Los nombres los escriben las familias: SIEMPRE como texto, nunca como HTML.
+    function el(tag, props, ...hijos) {
+      const e = document.createElement(tag);
+      if (props) for (const [k, v] of Object.entries(props)) {
+        if (k === 'class') e.className = v;
+        else if (k === 'style') e.style.cssText = v;
+        else e.setAttribute(k, v);
+      }
+      for (const h of hijos) if (h != null) e.append(h);
+      return e;
+    }
+    const etiqueta = (k) => SECCIONES[k] || k;
+
+    function mostrar(pantalla) {
+      $('cargando').hidden = pantalla !== 'cargando';
+      $('pantalla-login').hidden = pantalla !== 'login';
+      $('pantalla-pepa').hidden = pantalla !== 'pepa';
+      $('btn-salir').hidden = pantalla !== 'pepa';
+    }
+
+    function diasDesde(fechaIso) {
+      if (!fechaIso) return null;
+      return Math.round((Date.now() - new Date(fechaIso).getTime()) / 86400000);
+    }
+    function cuando(fechaIso) {
+      const d = diasDesde(fechaIso);
+      if (d === null) return 'nunca';
+      if (d <= 0) return 'hoy';
+      if (d === 1) return 'ayer';
+      return 'hace ' + d + ' días';
+    }
+
+    // ---- Misma lógica que src/domain/usageActivity.ts de PEPA ----
+    function rankSecciones(filas) {
+      const tot = new Map();
+      for (const r of filas) {
+        if (r.section === OPEN_KEY) continue;
+        tot.set(r.section, (tot.get(r.section) || 0) + Number(r.hits));
+      }
+      return [...tot.entries()].map(([key, hits]) => ({ key, label: etiqueta(key), hits }))
+        .sort((a, b) => b.hits - a.hits || a.label.localeCompare(b.label, 'es'));
+    }
+
+    function construirCuentas(cuentas, filas) {
+      const porPerfil = new Map();
+      for (const r of filas) {
+        if (!porPerfil.has(r.profile_id)) porPerfil.set(r.profile_id, []);
+        porPerfil.get(r.profile_id).push(r);
+      }
+      return cuentas.map((a) => {
+        const mias = porPerfil.get(a.profile_id) || [];
+        const ap = mias.find((r) => r.section === OPEN_KEY);
+        const secciones = rankSecciones(mias);
+        const ultimo = mias.reduce((m, r) => (m === null || r.last_day > m ? r.last_day : m), null);
+        return { ...a, opens: ap ? Number(ap.hits) : 0, dias: ap ? ap.days_used : 0, ultimo, secciones, inactiva: !ap || Number(ap.hits) === 0 };
+      });
+    }
+
+    function rankGlobal(filas) {
+      const hits = new Map(), gente = new Map();
+      for (const r of filas) {
+        if (r.section === OPEN_KEY) continue;
+        hits.set(r.section, (hits.get(r.section) || 0) + Number(r.hits));
+        if (!gente.has(r.section)) gente.set(r.section, new Set());
+        gente.get(r.section).add(r.profile_id);
+      }
+      const claves = new Set([...Object.keys(SECCIONES), ...hits.keys()]);
+      return [...claves].map((key) => ({ key, label: etiqueta(key), hits: hits.get(key) || 0, cuentas: gente.has(key) ? gente.get(key).size : 0 }))
+        .sort((a, b) => b.hits - a.hits || a.label.localeCompare(b.label, 'es'));
+    }
+
+    function barras(lista, max) {
+      const caja = document.createDocumentFragment();
+      for (const s of lista) {
+        const ancho = max > 0 ? Math.round((s.hits / max) * 100) : 0;
+        caja.append(el('div', { class: 'barra-fila' },
+          el('span', null, s.label),
+          el('div', { class: 'barra' }, el('div', { style: 'width:' + ancho + '%' })),
+          el('span', { class: 'barra-num' }, s.cuentas != null ? s.hits + ' · ' + s.cuentas + (s.cuentas === 1 ? ' cuenta' : ' cuentas') : String(s.hits))));
+      }
+      return caja;
+    }
+
+    let datos = null; // { cuentas, familias }
+
+    async function cargarActividad() {
+      const dias = Number($('periodo').value);
+      const { data, error } = await sb.rpc('list_app_usage_activity', { p_days: dias });
+      if (error) throw error;
+      return data || [];
+    }
+
+    function pintar(filas) {
+      const dias = Number($('periodo').value);
+      let lineas = construirCuentas(datos.cuentas, filas);
+      const orden = $('orden').value;
+      if (orden === 'menos') lineas.sort((a, b) => a.opens - b.opens || a.display_name.localeCompare(b.display_name, 'es'));
+      else if (orden === 'mas') lineas.sort((a, b) => b.opens - a.opens || a.display_name.localeCompare(b.display_name, 'es'));
+      else lineas.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+
+      const activas = lineas.filter((l) => !l.inactiva).length;
+      const conPush = lineas.filter((l) => l.has_push).length;
+      const resumen = $('resumen');
+      resumen.replaceChildren(
+        ...[[lineas.length, 'Descargas (cuentas)'], [datos.familias.length, 'Familias'], [activas + ' de ' + lineas.length, 'La han abierto (' + dias + ' d)'], [conPush, 'Con notificaciones (instalada)']]
+          .map(([v, e]) => el('div', { class: 'dato' }, el('div', { class: 'valor' }, String(v)), el('div', { class: 'etiqueta' }, e))));
+      $('nota-registro').textContent = 'El registro de aperturas y pantallas empezó el día que se activó (no hay datos anteriores). Solo se cuentan aperturas y nombres de pantalla.';
+
+      const cont = $('cuentas');
+      cont.replaceChildren();
+      for (const l of lineas) {
+        const fam = datos.familias.find((f) => f.family_id === l.family_id);
+        const det = el('details', { class: 'cuenta', 'data-inactiva': l.inactiva ? '1' : '0' });
+        det.append(el('summary', null,
+          el('span', { class: 'nombre' }, l.display_name + ' · ' + l.family_name),
+          el('span', { class: 'resumen-linea' }, l.inactiva ? '⚠️ no la ha abierto' : l.opens + (l.opens === 1 ? ' apertura' : ' aperturas') + ' · ' + l.dias + (l.dias === 1 ? ' día' : ' días'))));
+        const info = [
+          'Alta: ' + cuando(l.created_at) + ' · Último acceso: ' + cuando(l.last_sign_in_at) + ' · Última actividad: ' + (l.ultimo ? cuando(l.ultimo + 'T12:00:00') : 'sin registrar'),
+          (l.has_push ? '🔔 Notificaciones activadas (instalada de verdad)' : '🔕 Sin notificaciones') + ' · Rol: ' + l.role,
+          fam ? fam.members_total + (fam.members_total === 1 ? ' persona apuntada' : ' personas apuntadas') + ' en su familia (' + fam.members_with_account + ' con cuenta)' : '',
+        ].filter(Boolean);
+        const detalle = el('div', { class: 'detalle' }, ...info.map((t) => el('div', { class: 'suave' }, t)));
+        if (l.secciones.length === 0) detalle.append(el('p', { class: 'suave' }, 'Todavía no hay pantallas registradas.'));
+        else {
+          detalle.append(el('p', { style: 'margin:10px 0 2px;font-weight:600' }, 'Pantallas, de más a menos usada'));
+          detalle.append(barras(l.secciones, l.secciones[0].hits));
+        }
+        det.append(detalle);
+        cont.append(det);
+      }
+
+      const global = rankGlobal(filas);
+      $('ranking').replaceChildren(barras(global, Math.max(1, ...global.map((s) => s.hits))));
+    }
+
+    async function entrar() {
+      mostrar('cargando');
+      const { data: ses } = await sb.auth.getSession();
+      if (!ses.session) return mostrar('login');
+      try {
+        const [u, f, a] = await Promise.all([sb.rpc('list_app_usage'), sb.rpc('list_app_owner_families'), cargarActividad()]);
+        if (u.error) throw u.error;
+        if (f.error) throw f.error;
+        if (!u.data || u.data.length === 0) {
+          mostrar('pepa');
+          $('aviso').hidden = false;
+          $('aviso').textContent = 'Esta cuenta no es propietaria de PEPA, así que no puede ver estos datos.';
+          return;
+        }
+        $('aviso').hidden = true;
+        datos = { cuentas: u.data, familias: f.data || [] };
+        pintar(a);
+        mostrar('pepa');
+      } catch (e) {
+        mostrar('pepa');
+        $('aviso').hidden = false;
+        $('aviso').textContent = 'No se pudo cargar: ' + (e && e.message ? e.message : e);
+      }
+    }
+
+    $('form-login').addEventListener('submit', async (ev) => {
+      ev.preventDefault();
+      $('btn-entrar').disabled = true;
+      $('login-error').hidden = true;
+      const { error } = await sb.auth.signInWithPassword({ email: $('email').value.trim(), password: $('password').value });
+      $('btn-entrar').disabled = false;
+      if (error) {
+        $('login-error').textContent = 'No se pudo entrar: ' + error.message;
+        $('login-error').hidden = false;
+        return;
+      }
+      $('password').value = '';
+      entrar();
+    });
+    $('btn-salir').addEventListener('click', async () => { await sb.auth.signOut(); mostrar('login'); });
+    $('periodo').addEventListener('change', async () => { try { pintar(await cargarActividad()); } catch (e) { $('aviso').hidden = false; $('aviso').textContent = String(e.message || e); } });
+    $('orden').addEventListener('change', async () => { try { pintar(await cargarActividad()); } catch (e) { $('aviso').hidden = false; $('aviso').textContent = String(e.message || e); } });
+
+    entrar();
+  </script>
+</body>
+</html>
